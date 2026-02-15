@@ -83,7 +83,7 @@ foreach ($imeiRows as $r) {
 
     <div class="header">
         <div>
-            <h1>PhoneStock</h1>
+            <h1>Mystate</h1>
             <p class="company">Gestion de Stock de Téléphones</p>
         </div>
         <div style="text-align: right;">

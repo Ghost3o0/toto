@@ -1,6 +1,6 @@
 {
-    "name": "PhoneStock - Gestion de Stock",
-    "short_name": "PhoneStock",
+    "name": "Mystate - Gestion de Stock",
+    "short_name": "Mystate",
     "description": "Application de gestion de stock de téléphones",
     "start_url": "/",
     "display": "standalone",

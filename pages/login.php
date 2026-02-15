@@ -29,14 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - PhoneStock</title>
+    <title>Connexion - Mystate</title>
     <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1>PhoneStock</h1>
+                <h1>Mystate</h1>
                 <p>Connectez-vous pour accéder à la gestion de stock</p>
             </div>
 

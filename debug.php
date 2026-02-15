@@ -3,7 +3,7 @@
  * Page de diagnostic - À SUPPRIMER après déploiement
  */
 
-echo "<h1>Diagnostic PhoneStock</h1>";
+echo "<h1>Diagnostic Mystate</h1>";
 
 echo "<h2>1. Version PHP</h2>";
 echo "<p>" . phpversion() . "</p>";

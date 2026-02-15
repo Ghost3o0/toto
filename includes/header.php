@@ -11,8 +11,8 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="PhoneStock">
-    <title><?= $pageTitle ?? 'Gestion de Stock' ?> - PhoneStock</title>
+    <meta name="apple-mobile-web-app-title" content="Mystate">
+    <title><?= $pageTitle ?? 'Gestion de Stock' ?> - Mystate</title>
     <link rel="stylesheet" href="/assets/css/style.css">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
@@ -21,7 +21,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     <?php if (isLoggedIn()): ?>
     <nav class="navbar">
         <div class="navbar-brand">
-            <a href="/pages/dashboard.php">PhoneStock</a>
+            <a href="/pages/dashboard.php">Mystate</a>
         </div>
         <button class="navbar-toggle" aria-label="Ouvrir le menu" aria-expanded="false"> 
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>

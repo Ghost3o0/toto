@@ -1,7 +1,7 @@
     </main>
 
     <footer class="footer">
-        <p>&copy; <?= date('Y') ?> PhoneStock - Gestion de Stock de Téléphones</p>
+        <p>&copy; <?= date('Y') ?> Mystate - Gestion de Stock de Téléphones</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

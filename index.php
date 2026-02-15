@@ -1,6 +1,6 @@
 <?php
 /**
- * Point d'entrée de l'application PhoneStock
+ * Point d'entrée de l'application Mystate
  * Redirige vers la page appropriée
  */
 

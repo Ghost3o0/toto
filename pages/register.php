@@ -81,14 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Créer un compte - PhoneStock</title>
+    <title>Créer un compte - Mystate</title>
     <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1>PhoneStock</h1>
+                <h1>Mystate</h1>
                 <p>Créer un nouveau compte</p>
             </div>
 
