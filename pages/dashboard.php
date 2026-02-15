@@ -2,32 +2,54 @@
 $pageTitle = 'Tableau de bord';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/helpers.php';
 requireLogin();
+
+$uf = buildVisibleUserFilter();
+$ufIn = $uf['placeholders'];
+$ufParams = $uf['params'];
 
 // Statistiques principales
 $stats = [];
 
 // Total produits en stock
-$stats['total_quantity'] = fetchOne("SELECT COALESCE(SUM(quantity), 0) as total FROM phones")['total'];
+$stats['total_quantity'] = fetchOne("SELECT COALESCE(SUM(quantity), 0) as total FROM phones WHERE user_id IN ($ufIn)", $ufParams)['total'];
 
 // Nombre de références
-$stats['total_references'] = fetchOne("SELECT COUNT(*) as total FROM phones")['total'];
+$stats['total_references'] = fetchOne("SELECT COUNT(*) as total FROM phones WHERE user_id IN ($ufIn)", $ufParams)['total'];
 
 // Valeur totale du stock
-$stats['total_value'] = fetchOne("SELECT COALESCE(SUM(price * quantity), 0) as total FROM phones")['total'];
+$stats['total_value'] = fetchOne("SELECT COALESCE(SUM(price * quantity), 0) as total FROM phones WHERE user_id IN ($ufIn)", $ufParams)['total'];
 
 // Produits en stock bas
-$stats['low_stock'] = fetchOne("SELECT COUNT(*) as total FROM phones WHERE quantity <= min_stock")['total'];
+$stats['low_stock'] = fetchOne("SELECT COUNT(*) as total FROM phones WHERE quantity <= min_stock AND user_id IN ($ufIn)", $ufParams)['total'];
+
+// Ventes du mois
+$salesParams = array_merge($ufParams, []);
+$stats['monthly_sales'] = fetchOne(
+    "SELECT COALESCE(SUM(total_amount), 0) as total FROM invoices
+     WHERE user_id IN ($ufIn) AND status = 'completed'
+     AND created_at >= date_trunc('month', CURRENT_DATE)",
+    $salesParams
+)['total'];
+
+$stats['monthly_invoices'] = fetchOne(
+    "SELECT COUNT(*) as total FROM invoices
+     WHERE user_id IN ($ufIn) AND status = 'completed'
+     AND created_at >= date_trunc('month', CURRENT_DATE)",
+    $salesParams
+)['total'];
 
 // Répartition par marque (pour le graphique)
 $brandDistribution = fetchAll(
     "SELECT b.name, COALESCE(SUM(p.quantity), 0) as total
      FROM brands b
-     LEFT JOIN phones p ON b.id = p.brand_id
+     LEFT JOIN phones p ON b.id = p.brand_id AND p.user_id IN ($ufIn)
      GROUP BY b.id, b.name
      HAVING COALESCE(SUM(p.quantity), 0) > 0
      ORDER BY total DESC
-     LIMIT 10"
+     LIMIT 10",
+    $ufParams
 );
 
 // Top 5 des téléphones les plus vendus (sorties)
@@ -36,9 +58,11 @@ $topSold = fetchAll(
      FROM phones p
      LEFT JOIN brands b ON p.brand_id = b.id
      LEFT JOIN stock_movements sm ON p.id = sm.phone_id AND sm.type = 'OUT'
+     WHERE p.user_id IN ($ufIn)
      GROUP BY p.id, p.model, b.name
      ORDER BY total_sold DESC
-     LIMIT 5"
+     LIMIT 5",
+    $ufParams
 );
 
 // Mouvements récents
@@ -47,8 +71,10 @@ $recentMovements = fetchAll(
      FROM stock_movements sm
      LEFT JOIN phones p ON sm.phone_id = p.id
      LEFT JOIN brands b ON p.brand_id = b.id
+     WHERE p.user_id IN ($ufIn)
      ORDER BY sm.created_at DESC
-     LIMIT 5"
+     LIMIT 5",
+    $ufParams
 );
 
 // Produits en alerte stock bas
@@ -56,20 +82,23 @@ $lowStockProducts = fetchAll(
     "SELECT p.*, b.name as brand_name
      FROM phones p
      LEFT JOIN brands b ON p.brand_id = b.id
-     WHERE p.quantity <= p.min_stock
+     WHERE p.quantity <= p.min_stock AND p.user_id IN ($ufIn)
      ORDER BY p.quantity ASC
-     LIMIT 5"
+     LIMIT 5",
+    $ufParams
 );
 
 // Mouvements des 7 derniers jours (pour le graphique)
 $weekMovements = fetchAll(
-    "SELECT DATE(created_at) as date,
-            SUM(CASE WHEN type = 'IN' THEN quantity ELSE 0 END) as entries,
-            SUM(CASE WHEN type = 'OUT' THEN quantity ELSE 0 END) as exits
-     FROM stock_movements
-     WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-     GROUP BY DATE(created_at)
-     ORDER BY date"
+    "SELECT DATE(sm.created_at) as date,
+            SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE 0 END) as entries,
+            SUM(CASE WHEN sm.type = 'OUT' THEN sm.quantity ELSE 0 END) as exits
+     FROM stock_movements sm
+     LEFT JOIN phones p ON sm.phone_id = p.id
+     WHERE sm.created_at >= CURRENT_DATE - INTERVAL '7 days' AND p.user_id IN ($ufIn)
+     GROUP BY DATE(sm.created_at)
+     ORDER BY date",
+    $ufParams
 );
 
 require_once __DIR__ . '/../includes/header.php';
@@ -111,7 +140,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Valeur du stock</h3>
-            <div class="stat-value"><?= number_format($stats['total_value'], 0, ',', ' ') ?> €</div>
+            <div class="stat-value"><?= number_format($stats['total_value'], 0, ',', ' ') ?> Ar</div>
         </div>
     </div>
 
@@ -124,6 +153,32 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="stat-content">
             <h3>Stock bas</h3>
             <div class="stat-value"><?= $stats['low_stock'] ?></div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistiques ventes du mois -->
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+    <div class="stat-card">
+        <div class="stat-icon green">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+            </svg>
+        </div>
+        <div class="stat-content">
+            <h3>Ventes ce mois</h3>
+            <div class="stat-value"><?= number_format($stats['monthly_sales'], 0, ',', ' ') ?> Ar</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon blue">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+            </svg>
+        </div>
+        <div class="stat-content">
+            <h3>Factures ce mois</h3>
+            <div class="stat-value"><?= $stats['monthly_invoices'] ?></div>
         </div>
     </div>
 </div>

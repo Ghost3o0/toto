@@ -2,6 +2,7 @@
 $pageTitle = 'Historique des mouvements';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/helpers.php';
 requireLogin();
 
 // Paramètres de filtrage et pagination
@@ -11,9 +12,10 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($page - 1) * $perPage;
 
-// Construction de la requête
-$where = [];
-$params = [];
+// Filtrage par utilisateurs visibles
+$uf = buildVisibleUserFilter();
+$where = ["p.user_id IN ({$uf['placeholders']})"];
+$params = $uf['params'];
 
 if ($phoneFilter) {
     $where[] = "sm.phone_id = :phone_id";
@@ -28,7 +30,7 @@ if ($typeFilter) {
 $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Compter le total
-$countSql = "SELECT COUNT(*) as total FROM stock_movements sm $whereClause";
+$countSql = "SELECT COUNT(*) as total FROM stock_movements sm LEFT JOIN phones p ON sm.phone_id = p.id $whereClause";
 $total = fetchOne($countSql, $params)['total'];
 $totalPages = ceil($total / $perPage);
 
@@ -44,11 +46,15 @@ $sql = "SELECT sm.*, p.model as phone_model, b.name as brand_name, u.username
 
 $movements = fetchAll($sql, $params);
 
-// Récupérer les téléphones pour le filtre
-$phones = fetchAll("SELECT p.id, p.model, b.name as brand_name
-                    FROM phones p
-                    LEFT JOIN brands b ON p.brand_id = b.id
-                    ORDER BY b.name, p.model");
+// Récupérer les téléphones visibles pour le filtre
+$phones = fetchAll(
+    "SELECT p.id, p.model, b.name as brand_name
+     FROM phones p
+     LEFT JOIN brands b ON p.brand_id = b.id
+     WHERE p.user_id IN ({$uf['placeholders']})
+     ORDER BY b.name, p.model",
+    $uf['params']
+);
 
 require_once __DIR__ . '/../../includes/header.php';
 ?>

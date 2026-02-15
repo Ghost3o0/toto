@@ -8,12 +8,12 @@ $errors = [];
 $data = [
     'brand_id' => '',
     'model' => '',
-    'barcode' => '',
     'description' => '',
     'price' => '',
     'quantity' => '0',
     'min_stock' => '5'
 ];
+$imeis = [];
 
 // Traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -23,12 +23,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = [
             'brand_id' => $_POST['brand_id'] ?? '',
             'model' => trim($_POST['model'] ?? ''),
-            'barcode' => trim($_POST['barcode'] ?? ''),
             'description' => trim($_POST['description'] ?? ''),
             'price' => $_POST['price'] ?? '',
             'quantity' => $_POST['quantity'] ?? '0',
             'min_stock' => $_POST['min_stock'] ?? '5'
         ];
+        $imeis = $_POST['imeis'] ?? [];
 
         // Validation
         if (empty($data['model'])) {
@@ -37,35 +37,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($data['price']) || !is_numeric($data['price']) || $data['price'] < 0) {
             $errors[] = 'Le prix doit être un nombre positif.';
         }
-        if (!is_numeric($data['quantity']) || $data['quantity'] < 0) {
+        $qty = intval($data['quantity']);
+        if ($qty < 0) {
             $errors[] = 'La quantité doit être un nombre positif.';
         }
 
+        // Valider les IMEI
+        $cleanImeis = [];
+        if ($qty > 0) {
+            for ($i = 0; $i < $qty; $i++) {
+                $imei = trim($imeis[$i] ?? '');
+                if (empty($imei)) {
+                    $errors[] = "L'IMEI du téléphone " . ($i + 1) . " est obligatoire.";
+                } else {
+                    // Vérifier l'unicité en base
+                    $existing = fetchOne("SELECT id FROM phone_imeis WHERE imei = :imei", ['imei' => $imei]);
+                    if ($existing) {
+                        $errors[] = "L'IMEI \"$imei\" (téléphone " . ($i + 1) . ") existe déjà en base.";
+                    }
+                    $cleanImeis[] = $imei;
+                }
+            }
+            // Vérifier les doublons dans la saisie
+            if (count($cleanImeis) !== count(array_unique($cleanImeis))) {
+                $errors[] = 'Des IMEI en doublon ont été saisis.';
+            }
+        }
+
         if (empty($errors)) {
-            $sql = "INSERT INTO phones (brand_id, model, barcode, description, price, quantity, min_stock)
-                    VALUES (:brand_id, :model, :barcode, :description, :price, :quantity, :min_stock)";
+            $pdo = getConnection();
+            $pdo->beginTransaction();
+            try {
+                $sql = "INSERT INTO phones (brand_id, user_id, model, description, price, quantity, min_stock)
+                        VALUES (:brand_id, :user_id, :model, :description, :price, :quantity, :min_stock)";
 
-            execute($sql, [
-                'brand_id' => $data['brand_id'] ?: null,
-                'model' => $data['model'],
-                'barcode' => $data['barcode'] ?: null,
-                'description' => $data['description'],
-                'price' => $data['price'],
-                'quantity' => $data['quantity'],
-                'min_stock' => $data['min_stock']
-            ]);
+                execute($sql, [
+                    'brand_id' => $data['brand_id'] ?: null,
+                    'user_id' => $_SESSION['user_id'],
+                    'model' => $data['model'],
+                    'description' => $data['description'],
+                    'price' => $data['price'],
+                    'quantity' => $qty,
+                    'min_stock' => $data['min_stock']
+                ]);
 
-            // Enregistrer dans l'historique des prix
-            $phoneId = lastInsertId();
-            execute(
-                "INSERT INTO price_history (phone_id, old_price, new_price, changed_by) VALUES (:phone_id, NULL, :price, :user_id)",
-                ['phone_id' => $phoneId, 'price' => $data['price'], 'user_id' => $_SESSION['user_id']]
-            );
+                $phoneId = lastInsertId();
 
-            $_SESSION['flash_message'] = 'Téléphone ajouté avec succès.';
-            $_SESSION['flash_type'] = 'success';
-            header('Location: /pages/phones/list.php');
-            exit;
+                // Enregistrer dans l'historique des prix
+                execute(
+                    "INSERT INTO price_history (phone_id, old_price, new_price, changed_by) VALUES (:phone_id, NULL, :price, :user_id)",
+                    ['phone_id' => $phoneId, 'price' => $data['price'], 'user_id' => $_SESSION['user_id']]
+                );
+
+                // Insérer les IMEI
+                foreach ($cleanImeis as $imei) {
+                    execute(
+                        "INSERT INTO phone_imeis (phone_id, imei) VALUES (:phone_id, :imei)",
+                        ['phone_id' => $phoneId, 'imei' => $imei]
+                    );
+                }
+
+                $pdo->commit();
+                $_SESSION['flash_message'] = 'Téléphone ajouté avec succès.';
+                $_SESSION['flash_type'] = 'success';
+                header('Location: /pages/phones/list.php');
+                exit;
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $errors[] = "Erreur lors de l'enregistrement : " . $e->getMessage();
+            }
         }
     }
 }
@@ -116,19 +156,6 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
 
         <div class="form-group">
-            <label for="barcode" class="form-label">Code-barres / IMEI</label>
-            <div style="display: flex; gap: 0.5rem;">
-                <input type="text" id="barcode" name="barcode" class="form-control"
-                       value="<?= htmlspecialchars($data['barcode']) ?>" placeholder="Scanner ou saisir le code">
-                <button type="button" onclick="openBarcodeScanner(code => document.getElementById('barcode').value = code)" class="btn btn-outline">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h10M7 12h10M7 16h10"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <div class="form-group">
             <label for="description" class="form-label">Description</label>
             <textarea id="description" name="description" class="form-control"
                       placeholder="Description du produit..."><?= htmlspecialchars($data['description']) ?></textarea>
@@ -136,7 +163,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
         <div class="form-row">
             <div class="form-group">
-                <label for="price" class="form-label">Prix (€) *</label>
+                <label for="price" class="form-label">Prix (Ar) *</label>
                 <input type="number" id="price" name="price" class="form-control"
                        step="0.01" min="0" value="<?= htmlspecialchars($data['price']) ?>" required>
             </div>
@@ -144,7 +171,7 @@ require_once __DIR__ . '/../../includes/header.php';
             <div class="form-group">
                 <label for="quantity" class="form-label">Quantité initiale</label>
                 <input type="number" id="quantity" name="quantity" class="form-control"
-                       min="0" value="<?= htmlspecialchars($data['quantity']) ?>">
+                       min="0" value="<?= htmlspecialchars($data['quantity']) ?>" oninput="generateImeiFields()">
             </div>
 
             <div class="form-group">
@@ -154,11 +181,60 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
         </div>
 
+        <div id="imei-container"></div>
+
         <div class="btn-group">
             <button type="submit" class="btn btn-primary">Ajouter le téléphone</button>
             <a href="/pages/phones/list.php" class="btn btn-outline">Annuler</a>
         </div>
     </form>
 </div>
+
+<script>
+const existingImeis = <?= json_encode(array_map('trim', $imeis)) ?>;
+
+function generateImeiFields() {
+    const qty = parseInt(document.getElementById('quantity').value) || 0;
+    const container = document.getElementById('imei-container');
+
+    if (qty <= 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '<div class="card" style="margin: 1rem 0; padding: 1rem; background: var(--bg-color);">';
+    html += '<h3 style="font-size: 0.95rem; margin-bottom: 1rem;">IMEI des téléphones</h3>';
+
+    for (let i = 0; i < qty; i++) {
+        const val = existingImeis[i] || '';
+        html += `
+            <div class="form-group">
+                <label class="form-label">IMEI du téléphone ${i + 1} *</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="imeis[]" class="form-control" required
+                           value="${val.replace(/"/g, '&quot;')}" placeholder="Saisir ou scanner l'IMEI">
+                    <button type="button" onclick="scanImei(this)" class="btn btn-outline">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h10M7 12h10M7 16h10"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>`;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function scanImei(btn) {
+    const input = btn.closest('div').querySelector('input');
+    if (typeof openBarcodeScanner === 'function') {
+        openBarcodeScanner(code => input.value = code);
+    }
+}
+
+// Générer les champs au chargement si quantité > 0
+document.addEventListener('DOMContentLoaded', generateImeiFields);
+</script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

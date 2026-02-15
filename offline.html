@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hors ligne - PhoneStock</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <style>
+        .offline-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        .offline-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            color: var(--text-muted);
+        }
+        .offline-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+        .offline-message {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div>
+            <svg class="offline-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <h1 class="offline-title">Vous êtes hors ligne</h1>
+            <p class="offline-message">
+                Impossible de se connecter au serveur. Vérifiez votre connexion internet et réessayez.
+            </p>
+            <button onclick="window.location.reload()" class="btn btn-primary">
+                Réessayer
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Vérifier automatiquement la connexion
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>

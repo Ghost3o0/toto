@@ -1,0 +1,16 @@
+{
+    "name": "phonestock/app",
+    "description": "Application de gestion de stock de téléphones",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-pgsql": "*"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "echo 'Extensions PHP installées'"
+        ]
+    }
+}

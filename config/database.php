@@ -1,14 +1,27 @@
 <?php
 /**
  * Configuration de la connexion à PostgreSQL
+ * Compatible avec Railway (DATABASE_URL) et configuration locale
  */
 
-// Paramètres de connexion - À MODIFIER selon votre configuration
-define('DB_HOST', 'localhost');
-define('DB_PORT', '5432');
-define('DB_NAME', 'phone_stock_db');
-define('DB_USER', 'postgres');
-define('DB_PASS', '12345678');
+// Parser DATABASE_URL si disponible (format Railway)
+$databaseUrl = getenv('DATABASE_URL');
+
+if ($databaseUrl) {
+    $dbParams = parse_url($databaseUrl);
+    define('DB_HOST', $dbParams['host'] ?? 'localhost');
+    define('DB_PORT', $dbParams['port'] ?? '5432');
+    define('DB_NAME', ltrim($dbParams['path'] ?? '/railway', '/'));
+    define('DB_USER', $dbParams['user'] ?? 'postgres');
+    define('DB_PASS', $dbParams['pass'] ?? '');
+} else {
+    // Variables d'environnement séparées ou valeurs locales
+    define('DB_HOST', getenv('PGHOST') ?: 'localhost');
+    define('DB_PORT', getenv('PGPORT') ?: '5432');
+    define('DB_NAME', getenv('PGDATABASE') ?: 'phone_stock_db');
+    define('DB_USER', getenv('PGUSER') ?: 'postgres');
+    define('DB_PASS', getenv('PGPASSWORD') ?: '12345678');
+}
 
 /**
  * Établit la connexion à la base de données
@@ -44,9 +57,6 @@ function getConnection(): PDO {
 
 /**
  * Exécute une requête SELECT et retourne tous les résultats
- * @param string $sql Requête SQL
- * @param array $params Paramètres de la requête
- * @return array Résultats
  */
 function fetchAll(string $sql, array $params = []): array {
     $stmt = getConnection()->prepare($sql);
@@ -56,9 +66,6 @@ function fetchAll(string $sql, array $params = []): array {
 
 /**
  * Exécute une requête SELECT et retourne une seule ligne
- * @param string $sql Requête SQL
- * @param array $params Paramètres de la requête
- * @return array|false Résultat ou false
  */
 function fetchOne(string $sql, array $params = []): array|false {
     $stmt = getConnection()->prepare($sql);
@@ -68,9 +75,6 @@ function fetchOne(string $sql, array $params = []): array|false {
 
 /**
  * Exécute une requête INSERT, UPDATE ou DELETE
- * @param string $sql Requête SQL
- * @param array $params Paramètres de la requête
- * @return int Nombre de lignes affectées
  */
 function execute(string $sql, array $params = []): int {
     $stmt = getConnection()->prepare($sql);
@@ -80,7 +84,6 @@ function execute(string $sql, array $params = []): int {
 
 /**
  * Retourne le dernier ID inséré
- * @return string Dernier ID
  */
 function lastInsertId(): string {
     return getConnection()->lastInsertId();

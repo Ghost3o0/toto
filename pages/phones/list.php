@@ -2,6 +2,7 @@
 $pageTitle = 'Liste des téléphones';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/helpers.php';
 requireLogin();
 
 // Paramètres de recherche et pagination
@@ -12,12 +13,21 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = 10;
 $offset = ($page - 1) * $perPage;
 
-// Construction de la requête
-$where = [];
-$params = [];
+// Filtrage par utilisateurs visibles
+$uf = buildVisibleUserFilter();
+$where = ["p.user_id IN ({$uf['placeholders']})"];
+$params = $uf['params'];
+
+// Vérifier si la table phone_imeis existe avant de l'utiliser
+$hasImeis = tableExists('phone_imeis');
 
 if ($search) {
-    $where[] = "(p.model ILIKE :search OR p.description ILIKE :search)";
+    $searchClause = "(p.model ILIKE :search OR p.description ILIKE :search OR p.barcode ILIKE :search";
+    if ($hasImeis) {
+        $searchClause .= " OR pi.imei ILIKE :search";
+    }
+    $searchClause .= ")";
+    $where[] = $searchClause;
     $params['search'] = "%$search%";
 }
 
@@ -30,20 +40,22 @@ if ($stockFilter === 'low') {
     $where[] = "p.quantity <= p.min_stock";
 }
 
-$whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+$whereClause = 'WHERE ' . implode(' AND ', $where);
 
 // Compter le total
-$countSql = "SELECT COUNT(*) as total FROM phones p $whereClause";
+$join = $hasImeis ? 'LEFT JOIN phone_imeis pi ON p.id = pi.phone_id' : '';
+$countSql = "SELECT COUNT(DISTINCT p.id) as total FROM phones p " . ($join ? $join : '') . " $whereClause";
 $total = fetchOne($countSql, $params)['total'];
 $totalPages = ceil($total / $perPage);
 
 // Récupérer les téléphones
-$sql = "SELECT p.*, b.name as brand_name
-        FROM phones p
-        LEFT JOIN brands b ON p.brand_id = b.id
-        $whereClause
-        ORDER BY p.updated_at DESC
-        LIMIT $perPage OFFSET $offset";
+$sql = "SELECT DISTINCT p.*, b.name as brand_name
+    FROM phones p
+    LEFT JOIN brands b ON p.brand_id = b.id
+    " . ($join ? $join : '') . "
+    $whereClause
+    ORDER BY p.updated_at DESC
+    LIMIT $perPage OFFSET $offset";
 
 $phones = fetchAll($sql, $params);
 
@@ -60,8 +72,15 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
 
     <form method="GET" class="search-bar">
-        <input type="text" name="search" class="form-control" placeholder="Rechercher un modèle..."
-               value="<?= htmlspecialchars($search) ?>">
+        <div style="display: flex; gap: 0.5rem; flex: 1; min-width: 200px;">
+            <input type="text" name="search" id="search-input" class="form-control" placeholder="Rechercher modèle, code-barres..."
+                   value="<?= htmlspecialchars($search) ?>">
+            <button type="button" onclick="openBarcodeScanner(code => { document.getElementById('search-input').value = code; document.getElementById('search-input').form.submit(); })" class="btn btn-outline" title="Scanner">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h10M7 12h10M7 16h10"/>
+                </svg>
+            </button>
+        </div>
         <select name="brand" class="form-control" style="max-width: 200px;">
             <option value="">Toutes les marques</option>
             <?php foreach ($brands as $brand): ?>
@@ -106,7 +125,7 @@ require_once __DIR__ . '/../../includes/header.php';
                                     <br><small class="text-muted"><?= htmlspecialchars(substr($phone['description'], 0, 50)) ?>...</small>
                                 <?php endif; ?>
                             </td>
-                            <td><?= number_format($phone['price'], 2, ',', ' ') ?> €</td>
+                            <td><?= number_format($phone['price'], 2, ',', ' ') ?> Ar</td>
                             <td class="<?= $phone['quantity'] <= $phone['min_stock'] ? 'stock-low' : 'stock-ok' ?>">
                                 <?= $phone['quantity'] ?>
                             </td>

@@ -2,6 +2,7 @@
 $pageTitle = 'Modifier un téléphone';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/helpers.php';
 requireLogin();
 
 $id = intval($_GET['id'] ?? 0);
@@ -10,9 +11,10 @@ if (!$id) {
     exit;
 }
 
-// Récupérer le téléphone
+// Récupérer le téléphone et vérifier la propriété
+$visibleIds = getVisibleUserIds();
 $phone = fetchOne("SELECT * FROM phones WHERE id = :id", ['id' => $id]);
-if (!$phone) {
+if (!$phone || !in_array($phone['user_id'], $visibleIds)) {
     $_SESSION['flash_message'] = 'Téléphone introuvable.';
     $_SESSION['flash_type'] = 'danger';
     header('Location: /pages/phones/list.php');
@@ -30,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = [
             'brand_id' => $_POST['brand_id'] ?? '',
             'model' => trim($_POST['model'] ?? ''),
-            'barcode' => trim($_POST['barcode'] ?? ''),
             'description' => trim($_POST['description'] ?? ''),
             'price' => $_POST['price'] ?? '',
             'min_stock' => $_POST['min_stock'] ?? '5'
@@ -52,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql = "UPDATE phones SET
                     brand_id = :brand_id,
                     model = :model,
-                    barcode = :barcode,
                     description = :description,
                     price = :price,
                     min_stock = :min_stock,
@@ -63,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' => $id,
                 'brand_id' => $data['brand_id'] ?: null,
                 'model' => $data['model'],
-                'barcode' => $data['barcode'] ?: null,
                 'description' => $data['description'],
                 'price' => $newPrice,
                 'min_stock' => $data['min_stock']
@@ -93,8 +92,14 @@ $priceHistory = fetchAll(
     "SELECT ph.*, u.username FROM price_history ph
      LEFT JOIN users u ON ph.changed_by = u.id
      WHERE ph.phone_id = :phone_id
-     ORDER BY ph.changed_at DESC
+     ORDER BY ph.created_at DESC
      LIMIT 10",
+    ['phone_id' => $id]
+);
+
+// Récupérer les IMEI associés
+$phoneImeis = fetchAll(
+    "SELECT * FROM phone_imeis WHERE phone_id = :phone_id ORDER BY created_at",
     ['phone_id' => $id]
 );
 
@@ -141,19 +146,6 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
 
         <div class="form-group">
-            <label for="barcode" class="form-label">Code-barres / IMEI</label>
-            <div style="display: flex; gap: 0.5rem;">
-                <input type="text" id="barcode" name="barcode" class="form-control"
-                       value="<?= htmlspecialchars($data['barcode'] ?? '') ?>" placeholder="Scanner ou saisir le code">
-                <button type="button" onclick="openBarcodeScanner(code => document.getElementById('barcode').value = code)" class="btn btn-outline">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h10M7 12h10M7 16h10"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <div class="form-group">
             <label for="description" class="form-label">Description</label>
             <textarea id="description" name="description" class="form-control"
                       placeholder="Description du produit..."><?= htmlspecialchars($data['description']) ?></textarea>
@@ -161,7 +153,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
         <div class="form-row">
             <div class="form-group">
-                <label for="price" class="form-label">Prix (€) *</label>
+                <label for="price" class="form-label">Prix (Ar) *</label>
                 <input type="number" id="price" name="price" class="form-control"
                        step="0.01" min="0" value="<?= htmlspecialchars($data['price']) ?>" required>
             </div>
@@ -187,6 +179,42 @@ require_once __DIR__ . '/../../includes/header.php';
     </form>
 </div>
 
+<?php if (!empty($phoneImeis)): ?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">IMEI enregistrés (<?= count($phoneImeis) ?>)</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>IMEI</th>
+                    <th>Statut</th>
+                    <th>Date d'ajout</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($phoneImeis as $i => $imei): ?>
+                    <tr>
+                        <td><?= $i + 1 ?></td>
+                        <td><code><?= htmlspecialchars($imei['imei']) ?></code></td>
+                        <td>
+                            <?php if ($imei['status'] === 'in_stock'): ?>
+                                <span class="badge badge-success">En stock</span>
+                            <?php else: ?>
+                                <span class="badge badge-warning">Vendu</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= date('d/m/Y H:i', strtotime($imei['created_at'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($priceHistory)): ?>
 <div class="card">
     <div class="card-header">
@@ -210,14 +238,14 @@ require_once __DIR__ . '/../../includes/header.php';
                     $variationPercent = $history['old_price'] ? round(($variation / $history['old_price']) * 100, 1) : 0;
                     ?>
                     <tr>
-                        <td><?= date('d/m/Y H:i', strtotime($history['changed_at'])) ?></td>
-                        <td><?= $history['old_price'] ? number_format($history['old_price'], 2, ',', ' ') . ' €' : '-' ?></td>
-                        <td><strong><?= number_format($history['new_price'], 2, ',', ' ') ?> €</strong></td>
+                        <td><?= date('d/m/Y H:i', strtotime($history['created_at'])) ?></td>
+                        <td><?= $history['old_price'] ? number_format($history['old_price'], 2, ',', ' ') . ' Ar' : '-' ?></td>
+                        <td><strong><?= number_format($history['new_price'], 2, ',', ' ') ?> Ar</strong></td>
                         <td>
                             <?php if ($variation > 0): ?>
-                                <span class="badge badge-danger">+<?= number_format($variation, 2, ',', ' ') ?> € (+<?= $variationPercent ?>%)</span>
+                                <span class="badge badge-danger">+<?= number_format($variation, 2, ',', ' ') ?> Ar (+<?= $variationPercent ?>%)</span>
                             <?php elseif ($variation < 0): ?>
-                                <span class="badge badge-success"><?= number_format($variation, 2, ',', ' ') ?> € (<?= $variationPercent ?>%)</span>
+                                <span class="badge badge-success"><?= number_format($variation, 2, ',', ' ') ?> Ar (<?= $variationPercent ?>%)</span>
                             <?php else: ?>
                                 <span class="badge badge-info">Prix initial</span>
                             <?php endif; ?>

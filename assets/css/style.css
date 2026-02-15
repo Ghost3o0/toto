@@ -91,7 +91,7 @@ a:hover, a:active {
 }
 
 .navbar-menu {
-    display: flex;
+    display: none;
     list-style: none;
     gap: var(--spacing-xs);
     order: 3;
@@ -101,6 +101,25 @@ a:hover, a:active {
     padding-top: var(--spacing-sm);
     border-top: 1px solid var(--border-color);
     margin-top: var(--spacing-sm);
+}
+
+.navbar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid transparent;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    order: 4;
+    margin-left: auto;
+}
+
+.navbar-menu.active {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
 }
 
 .navbar-menu li a {
@@ -130,6 +149,7 @@ a:hover, a:active {
     gap: var(--spacing-sm);
     font-size: 0.8rem;
     color: var(--text-muted);
+    order: 3;
 }
 
 .navbar-user span {
@@ -661,11 +681,51 @@ textarea.form-control {
         border-top: none;
         padding-top: 0;
         margin-top: 0;
+        display: flex;
     }
 
     .navbar-user span {
         display: inline;
     }
+
+/* Action hamburger for card headers */
+.action-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid transparent;
+    padding: 0.5rem;
+    margin-left: 0.5rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.btn-group.visible-mobile {
+    display: flex !important;
+    position: absolute;
+    right: 1rem;
+    top: calc(100% + 0.5rem);
+    background: var(--bg-white);
+    padding: 0.5rem;
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius);
+    z-index: 150;
+    flex-direction: column;
+}
+
+/* Hide btn-group on small screens; show the hamburger */
+.card .card-header .btn-group {
+    display: none;
+}
+
+@media (min-width: 640px) {
+    .navbar-toggle { display: none; }
+    .navbar-menu { display: flex !important; }
+    .card .card-header .btn-group { display: flex; }
+    .action-hamburger { display: none; }
+    .btn-group.visible-mobile { position: static; box-shadow: none; flex-direction: row; }
+}
 
     .container {
         padding: var(--spacing-lg);
