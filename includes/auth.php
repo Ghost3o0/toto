@@ -3,7 +3,20 @@
  * Fonctions d'authentification
  */
 
+// Cookies sécurisés
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.use_strict_mode', 1);
+
 session_start();
+
+// Headers de sécurité
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(self), microphone=()');
 
 /**
  * Vérifie si l'utilisateur est connecté
@@ -47,6 +60,7 @@ function login(string $username, string $password): bool {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['email'] = $user['email'];
+        $_SESSION['last_activity'] = time();
         return true;
     }
 
@@ -66,12 +80,22 @@ function logout(): void {
 
 /**
  * Protège une page - redirige vers login si non connecté
+ * Vérifie aussi le timeout de session (30 minutes d'inactivité)
  */
 function requireLogin(): void {
     if (!isLoggedIn()) {
         header('Location: /pages/login.php');
         exit;
     }
+
+    // Timeout de session : 30 minutes
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
+        logout();
+        header('Location: /pages/login.php?timeout=1');
+        exit;
+    }
+
+    $_SESSION['last_activity'] = time();
 }
 
 /**
@@ -99,4 +123,48 @@ function verifyCsrfToken(string $token): bool {
  */
 function csrfField(): void {
     echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generateCsrfToken()) . '">';
+}
+
+// =====================================================
+// Rate limiting login
+// =====================================================
+
+/**
+ * Vérifie si une IP est bloquée par rate limiting (>= 5 tentatives en 15 min)
+ * @param string $ip Adresse IP
+ * @return bool
+ */
+function isRateLimited(string $ip): bool {
+    require_once __DIR__ . '/../config/database.php';
+
+    $row = fetchOne(
+        "SELECT COUNT(*) as attempts FROM login_attempts WHERE ip = :ip AND attempted_at > NOW() - INTERVAL '15 minutes'",
+        ['ip' => $ip]
+    );
+
+    return $row && (int)$row['attempts'] >= 5;
+}
+
+/**
+ * Enregistre une tentative de login échouée
+ * @param string $ip Adresse IP
+ * @param string $username Nom d'utilisateur tenté
+ */
+function recordFailedLogin(string $ip, string $username): void {
+    require_once __DIR__ . '/../config/database.php';
+
+    execute(
+        "INSERT INTO login_attempts (ip, username) VALUES (:ip, :username)",
+        ['ip' => $ip, 'username' => $username]
+    );
+}
+
+/**
+ * Efface les tentatives de login pour une IP (après login réussi)
+ * @param string $ip Adresse IP
+ */
+function clearLoginAttempts(string $ip): void {
+    require_once __DIR__ . '/../config/database.php';
+
+    execute("DELETE FROM login_attempts WHERE ip = :ip", ['ip' => $ip]);
 }

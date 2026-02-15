@@ -9,17 +9,27 @@ if (isLoggedIn()) {
 
 $error = '';
 
+// Message de timeout de session
+if (isset($_GET['timeout'])) {
+    $error = 'Votre session a expiré. Veuillez vous reconnecter.';
+}
+
 // Traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
+    $ip = $_SERVER['REMOTE_ADDR'];
 
     if (empty($username) || empty($password)) {
         $error = 'Veuillez remplir tous les champs.';
+    } elseif (isRateLimited($ip)) {
+        $error = 'Trop de tentatives. Veuillez réessayer dans 15 minutes.';
     } elseif (login($username, $password)) {
+        clearLoginAttempts($ip);
         header('Location: /pages/dashboard.php');
         exit;
     } else {
+        recordFailedLogin($ip, $username);
         $error = 'Identifiants incorrects.';
     }
 }

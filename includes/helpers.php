@@ -79,3 +79,30 @@ function tableExists(string $table): bool {
     $row = fetchOne("SELECT to_regclass(:name) as reg", ['name' => 'public.' . $table]);
     return !empty($row) && !empty($row['reg']);
 }
+
+/**
+ * Valide un IMEI : 15 chiffres + checksum Luhn
+ * @param string $imei IMEI à valider
+ * @return bool
+ */
+function validateImei(string $imei): bool {
+    // Doit être exactement 15 chiffres
+    if (!preg_match('/^\d{15}$/', $imei)) {
+        return false;
+    }
+
+    // Vérification Luhn
+    $sum = 0;
+    for ($i = 0; $i < 15; $i++) {
+        $digit = (int)$imei[$i];
+        if ($i % 2 === 1) {
+            $digit *= 2;
+            if ($digit > 9) {
+                $digit -= 9;
+            }
+        }
+        $sum += $digit;
+    }
+
+    return $sum % 10 === 0;
+}

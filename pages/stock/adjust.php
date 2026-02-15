@@ -62,6 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $imei = trim($postedImeis[$i] ?? '');
                 if (empty($imei)) {
                     $errors[] = "L'IMEI du téléphone " . ($i + 1) . " est obligatoire.";
+                } elseif (!validateImei($imei)) {
+                    $errors[] = "L'IMEI \"$imei\" (téléphone " . ($i + 1) . ") est invalide (15 chiffres requis, checksum Luhn).";
                 } else {
                     $existing = fetchOne("SELECT id FROM phone_imeis WHERE imei = :imei", ['imei' => $imei]);
                     if ($existing) {

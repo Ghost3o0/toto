@@ -2,6 +2,7 @@
 $pageTitle = 'Ajouter un téléphone';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/helpers.php';
 requireLogin();
 
 $errors = [];
@@ -49,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $imei = trim($imeis[$i] ?? '');
                 if (empty($imei)) {
                     $errors[] = "L'IMEI du téléphone " . ($i + 1) . " est obligatoire.";
+                } elseif (!validateImei($imei)) {
+                    $errors[] = "L'IMEI \"$imei\" (téléphone " . ($i + 1) . ") est invalide (15 chiffres requis, checksum Luhn).";
                 } else {
                     // Vérifier l'unicité en base
                     $existing = fetchOne("SELECT id FROM phone_imeis WHERE imei = :imei", ['imei' => $imei]);

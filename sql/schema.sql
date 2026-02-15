@@ -166,6 +166,17 @@ CREATE INDEX IF NOT EXISTS idx_invoice_line_imeis_line ON invoice_line_imeis(inv
 CREATE INDEX IF NOT EXISTS idx_invoice_line_imeis_imei ON invoice_line_imeis(phone_imei_id);
 
 -- =====================================================
+-- Table des tentatives de login (rate limiting)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id SERIAL PRIMARY KEY,
+    ip VARCHAR(45) NOT NULL,
+    username VARCHAR(50) NOT NULL,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, attempted_at);
+
+-- =====================================================
 -- Données initiales
 -- =====================================================
 
