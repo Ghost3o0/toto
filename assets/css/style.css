@@ -254,7 +254,6 @@ table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8rem;
-    min-width: 600px;
 }
 
 table th,
@@ -262,7 +261,12 @@ table td {
     padding: var(--spacing-sm);
     text-align: left;
     border-bottom: 1px solid var(--border-color);
-    white-space: nowrap;
+}
+
+/* Action buttons stack vertically on mobile */
+table .btn-group {
+    flex-direction: column;
+    gap: var(--spacing-xs);
 }
 
 table th {
@@ -581,10 +585,6 @@ textarea.form-control {
     height: 250px;
 }
 
-/* Dashboard small tables don't need min-width */
-.charts-grid table {
-    min-width: auto;
-}
 
 /* =====================================================
    Stock Status
@@ -780,6 +780,11 @@ textarea.form-control {
     table th,
     table td {
         padding: var(--spacing-md);
+        white-space: nowrap;
+    }
+
+    table .btn-group {
+        flex-direction: row;
     }
 
     .modal-overlay {
