@@ -88,6 +88,36 @@ $lowStockProducts = fetchAll(
     $ufParams
 );
 
+// Rapport quotidien : ventes du jour
+$todaySales = fetchAll(
+    "SELECT i.invoice_number, i.client_name, i.total_amount, i.created_at,
+            COUNT(il.id) as nb_articles, SUM(il.quantity) as nb_unites
+     FROM invoices i
+     LEFT JOIN invoice_lines il ON i.id = il.invoice_id
+     WHERE i.user_id IN ($ufIn) AND i.status = 'completed'
+     AND DATE(i.created_at) = CURRENT_DATE
+     GROUP BY i.id, i.invoice_number, i.client_name, i.total_amount, i.created_at
+     ORDER BY i.created_at DESC",
+    $ufParams
+);
+
+$todayStats = fetchOne(
+    "SELECT COUNT(*) as nb_ventes, COALESCE(SUM(total_amount), 0) as total_montant
+     FROM invoices
+     WHERE user_id IN ($ufIn) AND status = 'completed'
+     AND DATE(created_at) = CURRENT_DATE",
+    $ufParams
+);
+
+$todayUnits = fetchOne(
+    "SELECT COALESCE(SUM(sm.quantity), 0) as total
+     FROM stock_movements sm
+     LEFT JOIN phones p ON sm.phone_id = p.id
+     WHERE sm.type = 'OUT' AND p.user_id IN ($ufIn)
+     AND DATE(sm.created_at) = CURRENT_DATE",
+    $ufParams
+);
+
 // Mouvements des 7 derniers jours (pour le graphique)
 $weekMovements = fetchAll(
     "SELECT DATE(sm.created_at) as date,
@@ -181,6 +211,76 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="stat-value"><?= $stats['monthly_invoices'] ?></div>
         </div>
     </div>
+</div>
+
+<!-- Rapport quotidien -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h2 class="card-title">Rapport du jour (<?= date('d/m/Y') ?>)</h2>
+    </div>
+    <div class="stats-grid" style="margin-bottom: 1rem;">
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <h3>Ventes aujourd'hui</h3>
+                <div class="stat-value"><?= $todayStats['nb_ventes'] ?></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <h3>Unités sorties</h3>
+                <div class="stat-value"><?= $todayUnits['total'] ?></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <h3>Chiffre du jour</h3>
+                <div class="stat-value"><?= number_format($todayStats['total_montant'], 0, ',', ' ') ?> Ar</div>
+            </div>
+        </div>
+    </div>
+    <?php if (!empty($todaySales)): ?>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Heure</th>
+                        <th>Facture</th>
+                        <th>Client</th>
+                        <th>Articles</th>
+                        <th>Montant</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($todaySales as $sale): ?>
+                        <tr>
+                            <td><?= date('H:i', strtotime($sale['created_at'])) ?></td>
+                            <td><strong><?= htmlspecialchars($sale['invoice_number']) ?></strong></td>
+                            <td><?= htmlspecialchars($sale['client_name']) ?></td>
+                            <td><?= $sale['nb_unites'] ?> unité(s)</td>
+                            <td><strong><?= number_format($sale['total_amount'], 0, ',', ' ') ?> Ar</strong></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php else: ?>
+        <p class="text-muted text-center">Aucune vente aujourd'hui</p>
+    <?php endif; ?>
 </div>
 
 <!-- Graphiques -->

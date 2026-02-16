@@ -43,7 +43,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                 <a href="/pages/partners/list.php">Partenaires</a>
             </li>
             <li>
-                <a href="/pages/logout.php">Déconnexion</a>
+                <a href="/pages/logout.php" onclick="return confirm('Voulez-vous vraiment vous déconnecter ?')">Déconnexion</a>
             </li>
             <li>
                 <a href="javascript:void(0)" onclick="toggleTheme()" title="Changer le thème">

@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($type, ['IN', 'OUT'])) {
             $errors[] = 'Type de mouvement invalide.';
         }
-        if ($quantity <= 0) {
+        if ($type === 'IN' && $quantity <= 0) {
             $errors[] = 'La quantité doit être supérieure à 0.';
         }
 
@@ -51,8 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone = fetchOne("SELECT * FROM phones WHERE id = :id", ['id' => $phoneId]);
         if (!$phone || !in_array($phone['user_id'], $visibleIds)) {
             $errors[] = 'Téléphone introuvable.';
-        } elseif ($type === 'OUT' && $quantity > $phone['quantity']) {
-            $errors[] = 'Stock insuffisant. Stock actuel : ' . $phone['quantity'];
         }
 
         // Valider les IMEI pour les entrées
@@ -74,6 +72,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (count($cleanImeis) !== count(array_unique($cleanImeis))) {
                 $errors[] = 'Des IMEI en doublon ont été saisis.';
+            }
+        }
+
+        // Valider les IMEI sélectionnés pour les sorties
+        $selectedImeiIds = [];
+        if (empty($errors) && $type === 'OUT') {
+            $selectedImeiIds = array_filter(array_map('intval', $_POST['selected_imeis'] ?? []));
+            if (empty($selectedImeiIds)) {
+                $errors[] = 'Veuillez sélectionner au moins un IMEI à sortir.';
+            } else {
+                // Vérifier que chaque IMEI appartient au téléphone et est en stock
+                foreach ($selectedImeiIds as $imeiId) {
+                    $imeiRow = fetchOne(
+                        "SELECT id FROM phone_imeis WHERE id = :id AND phone_id = :pid AND status = 'in_stock'",
+                        ['id' => $imeiId, 'pid' => $phoneId]
+                    );
+                    if (!$imeiRow) {
+                        $errors[] = "IMEI invalide ou déjà sorti (ID: $imeiId).";
+                    }
+                }
+                // La quantité est déterminée par le nombre d'IMEI sélectionnés
+                $quantity = count($selectedImeiIds);
             }
         }
 
@@ -110,6 +130,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // Marquer les IMEI comme sortis pour les sorties
+                if ($type === 'OUT') {
+                    foreach ($selectedImeiIds as $imeiId) {
+                        execute(
+                            "UPDATE phone_imeis SET status = 'sold' WHERE id = :id",
+                            ['id' => $imeiId]
+                        );
+                    }
+                }
+
                 $pdo->commit();
                 $_SESSION['flash_message'] = 'Mouvement de stock enregistré avec succès.';
                 $_SESSION['flash_type'] = 'success';
@@ -132,6 +162,16 @@ $phones = fetchAll(
      ORDER BY b.name, p.model",
     $uf['params']
 );
+
+// Récupérer les IMEI disponibles par téléphone (pour les sorties)
+$imeisPerPhone = [];
+foreach ($phones as $p) {
+    $imeis = fetchAll(
+        "SELECT id, imei FROM phone_imeis WHERE phone_id = :pid AND status = 'in_stock' ORDER BY created_at",
+        ['pid' => $p['id']]
+    );
+    $imeisPerPhone[$p['id']] = $imeis;
+}
 
 require_once __DIR__ . '/../../includes/header.php';
 ?>
@@ -203,7 +243,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="quantity-group">
                 <label for="quantity" class="form-label">Quantité *</label>
                 <input type="number" id="quantity" name="quantity" class="form-control"
                        min="1" value="1" required oninput="generateImeiFields()">
@@ -211,6 +251,7 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
 
         <div id="imei-container"></div>
+        <div id="imei-out-container"></div>
 
         <div class="form-group">
             <label for="reason" class="form-label">Raison / Commentaire</label>
@@ -227,6 +268,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <script>
 const existingImeis = <?= json_encode(array_map('trim', $postedImeis)) ?>;
+const imeisData = <?= json_encode($imeisPerPhone) ?>;
 
 function getSelectedType() {
     const checked = document.querySelector('input[name="type"]:checked');
@@ -234,7 +276,21 @@ function getSelectedType() {
 }
 
 function onTypeChange() {
+    const type = getSelectedType();
+    const qtyGroup = document.getElementById('quantity-group');
+    const qtyInput = document.getElementById('quantity');
+
+    if (type === 'OUT') {
+        // Cacher le champ quantité (déterminé par les IMEI sélectionnés)
+        qtyGroup.style.display = 'none';
+        qtyInput.removeAttribute('required');
+    } else {
+        qtyGroup.style.display = '';
+        qtyInput.setAttribute('required', 'required');
+    }
+
     generateImeiFields();
+    generateOutImeiCheckboxes();
 }
 
 function generateImeiFields() {
@@ -271,6 +327,51 @@ function generateImeiFields() {
     container.innerHTML = html;
 }
 
+function generateOutImeiCheckboxes() {
+    const container = document.getElementById('imei-out-container');
+    const type = getSelectedType();
+    const phoneSelect = document.getElementById('phone_id');
+    const phoneId = phoneSelect.value;
+
+    if (type !== 'OUT' || !phoneId) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const imeis = imeisData[phoneId] || [];
+
+    if (imeis.length === 0) {
+        container.innerHTML = '<div class="alert alert-info" style="margin: 1rem 0;">Aucun IMEI en stock pour ce téléphone.</div>';
+        return;
+    }
+
+    let html = '<div class="card" style="margin: 1rem 0; padding: 1rem; background: var(--bg-color);">';
+    html += '<h3 style="font-size: 0.95rem; margin-bottom: 0.5rem;">Sélectionner les IMEI à sortir</h3>';
+    html += '<p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">' + imeis.length + ' IMEI disponible(s) — <span id="out-imei-count">0</span> sélectionné(s)</p>';
+    html += '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">';
+
+    imeis.forEach(imei => {
+        html += `
+            <label style="display: flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border-color); border-radius: var(--radius); cursor: pointer; font-size: 0.85rem; transition: all 0.2s;">
+                <input type="checkbox" name="selected_imeis[]" value="${imei.id}" onchange="updateOutImeiCount()">
+                <code>${imei.imei}</code>
+            </label>`;
+    });
+
+    html += '</div></div>';
+    container.innerHTML = html;
+}
+
+function updateOutImeiCount() {
+    const checked = document.querySelectorAll('#imei-out-container input[type="checkbox"]:checked');
+    const countSpan = document.getElementById('out-imei-count');
+    if (countSpan) {
+        countSpan.textContent = checked.length;
+    }
+    // Mettre à jour la quantité cachée
+    document.getElementById('quantity').value = checked.length || 1;
+}
+
 function scanImei(btn) {
     const input = btn.closest('div').querySelector('input');
     if (typeof openBarcodeScanner === 'function') {
@@ -279,11 +380,16 @@ function scanImei(btn) {
 }
 
 function updateStockInfo(select) {
-    // Info stock handled by page reload / display
+    // Regénérer les checkboxes IMEI si on est en mode sortie
+    if (getSelectedType() === 'OUT') {
+        generateOutImeiCheckboxes();
+    }
 }
 
 // Générer les champs au chargement
-document.addEventListener('DOMContentLoaded', generateImeiFields);
+document.addEventListener('DOMContentLoaded', function() {
+    onTypeChange();
+});
 </script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
