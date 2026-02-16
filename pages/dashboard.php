@@ -118,6 +118,24 @@ $todayUnits = fetchOne(
     $ufParams
 );
 
+// Statistiques d'hier (comparaison)
+$yesterdayStats = fetchOne(
+    "SELECT COUNT(*) as nb_ventes, COALESCE(SUM(total_amount), 0) as total_montant
+     FROM invoices
+     WHERE user_id IN ($ufIn) AND status = 'completed'
+     AND DATE(created_at) = CURRENT_DATE - 1",
+    $ufParams
+);
+
+$yesterdayUnits = fetchOne(
+    "SELECT COALESCE(SUM(sm.quantity), 0) as total
+     FROM stock_movements sm
+     LEFT JOIN phones p ON sm.phone_id = p.id
+     WHERE sm.type = 'OUT' AND p.user_id IN ($ufIn)
+     AND DATE(sm.created_at) = CURRENT_DATE - 1",
+    $ufParams
+);
+
 // Mouvements des 7 derniers jours (pour le graphique)
 $weekMovements = fetchAll(
     "SELECT DATE(sm.created_at) as date,
@@ -131,10 +149,47 @@ $weekMovements = fetchAll(
     $ufParams
 );
 
+// Ventes des 30 derniers jours (pour le graphique ligne)
+$monthlySalesChart = fetchAll(
+    "SELECT DATE(created_at) as date,
+            COUNT(*) as nb_ventes,
+            COALESCE(SUM(total_amount), 0) as total_montant
+     FROM invoices
+     WHERE user_id IN ($ufIn) AND status = 'completed'
+     AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+     GROUP BY DATE(created_at)
+     ORDER BY date",
+    $ufParams
+);
+
+// Helper pour comparaison
+function comparisonHtml($today, $yesterday) {
+    $today = floatval($today);
+    $yesterday = floatval($yesterday);
+    if ($yesterday == 0 && $today == 0) {
+        return '<div class="stat-comparison equal">= identique</div>';
+    }
+    if ($yesterday == 0) {
+        return '<div class="stat-comparison up">&uarr; nouveau</div>';
+    }
+    $pct = round((($today - $yesterday) / $yesterday) * 100);
+    if ($pct > 0) {
+        return '<div class="stat-comparison up">&uarr; +' . $pct . '% vs hier</div>';
+    } elseif ($pct < 0) {
+        return '<div class="stat-comparison down">&darr; ' . $pct . '% vs hier</div>';
+    }
+    return '<div class="stat-comparison equal">= identique vs hier</div>';
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<h1 style="margin-bottom: 1.5rem;">Tableau de bord</h1>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1>Tableau de bord</h1>
+    <button class="btn-toggle-values" onclick="toggleHideValues()" title="Masquer/afficher les valeurs">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Masquer
+    </button>
+</div>
 
 <!-- Statistiques principales -->
 <div class="stats-grid">
@@ -146,7 +201,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Total en stock</h3>
-            <div class="stat-value"><?= number_format($stats['total_quantity'], 0, ',', ' ') ?></div>
+            <div class="stat-value" data-target="<?= $stats['total_quantity'] ?>"><?= number_format($stats['total_quantity'], 0, ',', ' ') ?></div>
         </div>
     </div>
 
@@ -158,7 +213,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Références</h3>
-            <div class="stat-value"><?= $stats['total_references'] ?></div>
+            <div class="stat-value" data-target="<?= $stats['total_references'] ?>"><?= $stats['total_references'] ?></div>
         </div>
     </div>
 
@@ -170,7 +225,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Valeur du stock</h3>
-            <div class="stat-value"><?= number_format($stats['total_value'], 0, ',', ' ') ?> Ar</div>
+            <div class="stat-value" data-monetary="true" data-target="<?= $stats['total_value'] ?>" data-suffix="Ar"><?= number_format($stats['total_value'], 0, ',', ' ') ?> Ar</div>
         </div>
     </div>
 
@@ -182,7 +237,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Stock bas</h3>
-            <div class="stat-value"><?= $stats['low_stock'] ?></div>
+            <div class="stat-value" data-target="<?= $stats['low_stock'] ?>"><?= $stats['low_stock'] ?></div>
         </div>
     </div>
 </div>
@@ -197,7 +252,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Ventes ce mois</h3>
-            <div class="stat-value"><?= number_format($stats['monthly_sales'], 0, ',', ' ') ?> Ar</div>
+            <div class="stat-value" data-monetary="true" data-target="<?= $stats['monthly_sales'] ?>" data-suffix="Ar"><?= number_format($stats['monthly_sales'], 0, ',', ' ') ?> Ar</div>
         </div>
     </div>
     <div class="stat-card">
@@ -208,7 +263,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="stat-content">
             <h3>Factures ce mois</h3>
-            <div class="stat-value"><?= $stats['monthly_invoices'] ?></div>
+            <div class="stat-value" data-target="<?= $stats['monthly_invoices'] ?>"><?= $stats['monthly_invoices'] ?></div>
         </div>
     </div>
 </div>
@@ -227,7 +282,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="stat-content">
                 <h3>Ventes aujourd'hui</h3>
-                <div class="stat-value"><?= $todayStats['nb_ventes'] ?></div>
+                <div class="stat-value" data-target="<?= $todayStats['nb_ventes'] ?>"><?= $todayStats['nb_ventes'] ?></div>
+                <?= comparisonHtml($todayStats['nb_ventes'], $yesterdayStats['nb_ventes']) ?>
             </div>
         </div>
         <div class="stat-card">
@@ -238,7 +294,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="stat-content">
                 <h3>Unités sorties</h3>
-                <div class="stat-value"><?= $todayUnits['total'] ?></div>
+                <div class="stat-value" data-target="<?= $todayUnits['total'] ?>"><?= $todayUnits['total'] ?></div>
+                <?= comparisonHtml($todayUnits['total'], $yesterdayUnits['total']) ?>
             </div>
         </div>
         <div class="stat-card">
@@ -249,7 +306,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="stat-content">
                 <h3>Chiffre du jour</h3>
-                <div class="stat-value"><?= number_format($todayStats['total_montant'], 0, ',', ' ') ?> Ar</div>
+                <div class="stat-value" data-monetary="true" data-target="<?= $todayStats['total_montant'] ?>" data-suffix="Ar"><?= number_format($todayStats['total_montant'], 0, ',', ' ') ?> Ar</div>
+                <?= comparisonHtml($todayStats['total_montant'], $yesterdayStats['total_montant']) ?>
             </div>
         </div>
     </div>
@@ -281,6 +339,16 @@ require_once __DIR__ . '/../includes/header.php';
     <?php else: ?>
         <p class="text-muted text-center">Aucune vente aujourd'hui</p>
     <?php endif; ?>
+</div>
+
+<!-- Graphique ventes 30 jours -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h2 class="card-title">Ventes des 30 derniers jours</h2>
+    </div>
+    <div class="chart-container-wide">
+        <canvas id="salesChart30"></canvas>
+    </div>
 </div>
 
 <!-- Graphiques -->
@@ -426,6 +494,73 @@ require_once __DIR__ . '/../includes/header.php';
 // Données pour les graphiques
 const brandData = <?= json_encode($brandDistribution) ?>;
 const movementsData = <?= json_encode($weekMovements) ?>;
+const salesChart30Data = <?= json_encode($monthlySalesChart) ?>;
+
+// Counter animations
+initCounterAnimations();
+
+// Apply hide values if previously set
+if (localStorage.getItem('hide_values') === 'true') {
+    applyHideValues(true);
+}
+
+// Graphique ventes 30 jours
+if (salesChart30Data.length > 0) {
+    new Chart(document.getElementById('salesChart30'), {
+        type: 'line',
+        data: {
+            labels: salesChart30Data.map(d => {
+                const dt = new Date(d.date);
+                return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            }),
+            datasets: [{
+                label: 'Nombre de ventes',
+                data: salesChart30Data.map(d => d.nb_ventes),
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.3,
+                yAxisID: 'y'
+            }, {
+                label: 'Montant (Ar)',
+                data: salesChart30Data.map(d => d.total_montant),
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                fill: true,
+                tension: 0.3,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Ventes' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    beginAtZero: true,
+                    title: { display: true, text: 'Montant (Ar)' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+} else {
+    document.getElementById('salesChart30').parentElement.innerHTML =
+        '<p class="text-muted text-center" style="padding: 2rem;">Aucune vente sur les 30 derniers jours</p>';
+}
 
 // Graphique répartition par marque
 if (brandData.length > 0) {

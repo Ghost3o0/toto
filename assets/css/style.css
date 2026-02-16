@@ -963,6 +963,169 @@ textarea.form-control {
 }
 
 /* =====================================================
+   Hide Values Toggle
+   ===================================================== */
+.value-hidden {
+    color: transparent !important;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    user-select: none;
+    position: relative;
+}
+
+.value-hidden::after {
+    content: '\2022\2022\2022\2022\2022\2022';
+    position: absolute;
+    left: 0;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+}
+
+.btn-toggle-values {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    cursor: pointer;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 0.8rem;
+    min-height: 36px;
+    transition: background-color 0.2s;
+}
+
+.btn-toggle-values:hover {
+    background-color: var(--bg-color);
+}
+
+/* =====================================================
+   Table Compact Mode
+   ===================================================== */
+.table-compact td,
+.table-compact th {
+    padding: var(--spacing-xs) var(--spacing-sm) !important;
+    font-size: 0.75rem !important;
+}
+
+.btn-compact-toggle {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-height: 36px;
+    transition: background-color 0.2s;
+}
+
+.btn-compact-toggle:hover {
+    background-color: var(--bg-color);
+}
+
+.btn-compact-toggle.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* =====================================================
+   Comparison vs Yesterday
+   ===================================================== */
+.stat-comparison {
+    font-size: 0.7rem;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.stat-comparison.up {
+    color: var(--success-color);
+}
+
+.stat-comparison.down {
+    color: var(--danger-color);
+}
+
+.stat-comparison.equal {
+    color: var(--text-muted);
+}
+
+/* =====================================================
+   IMEI Search
+   ===================================================== */
+.imei-search-box {
+    max-width: 600px;
+    margin: 0 auto var(--spacing-lg);
+}
+
+.imei-search-box .search-input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.imei-result-card {
+    background: var(--bg-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-top: var(--spacing-md);
+}
+
+.imei-result-card .result-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.imei-result-card .result-row:last-child {
+    border-bottom: none;
+}
+
+.imei-result-card .result-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.imei-result-card .result-value {
+    font-weight: 600;
+}
+
+/* =====================================================
+   Export CSV Button
+   ===================================================== */
+.btn-export {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    transition: background-color 0.2s;
+    text-decoration: none;
+}
+
+.btn-export:hover {
+    background-color: var(--bg-color);
+    text-decoration: none;
+}
+
+/* =====================================================
+   30-day Sales Chart
+   ===================================================== */
+.chart-container-wide {
+    position: relative;
+    height: 300px;
+    margin-top: var(--spacing-md);
+}
+
+/* =====================================================
    Print Styles
    ===================================================== */
 @media print {

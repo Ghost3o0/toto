@@ -62,13 +62,57 @@ $phones = fetchAll($sql, $params);
 // Récupérer les marques pour le filtre
 $brands = fetchAll("SELECT * FROM brands ORDER BY name");
 
+// Export CSV
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    // Re-fetch all without pagination
+    $allPhones = fetchAll(
+        "SELECT DISTINCT p.*, b.name as brand_name
+         FROM phones p
+         LEFT JOIN brands b ON p.brand_id = b.id
+         " . ($join ? $join : '') . "
+         $whereClause
+         ORDER BY p.updated_at DESC",
+        $params
+    );
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=telephones_' . date('Y-m-d') . '.csv');
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
+    fputcsv($out, ['Marque', 'Modèle', 'Prix', 'Quantité', 'Stock min', 'Statut'], ';');
+    foreach ($allPhones as $ph) {
+        $status = 'OK';
+        if ($ph['quantity'] <= $ph['min_stock']) $status = 'Stock bas';
+        elseif ($ph['quantity'] <= $ph['min_stock'] * 2) $status = 'Attention';
+        fputcsv($out, [
+            $ph['brand_name'] ?? 'N/A',
+            $ph['model'],
+            number_format($ph['price'], 2, ',', ' ') . ' Ar',
+            $ph['quantity'],
+            $ph['min_stock'],
+            $status
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 
 <div class="card">
     <div class="card-header">
         <h1 class="card-title">Téléphones en stock</h1>
-        <a href="/pages/phones/add.php" class="btn btn-primary">+ Ajouter un téléphone</a>
+        <div class="btn-group">
+            <a href="/pages/phones/add.php" class="btn btn-primary">+ Ajouter un téléphone</a>
+            <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn-export" title="Exporter CSV">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                CSV
+            </a>
+            <button class="btn-compact-toggle" onclick="toggleCompactMode()">Compact</button>
+        </div>
     </div>
 
     <form method="GET" class="search-bar">

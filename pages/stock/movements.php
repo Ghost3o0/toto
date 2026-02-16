@@ -8,6 +8,9 @@ requireLogin();
 // Paramètres de filtrage et pagination
 $phoneFilter = $_GET['phone'] ?? '';
 $typeFilter = $_GET['type'] ?? '';
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo = $_GET['date_to'] ?? '';
+$search = $_GET['search'] ?? '';
 $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($page - 1) * $perPage;
@@ -27,10 +30,60 @@ if ($typeFilter) {
     $params['type'] = $typeFilter;
 }
 
+if ($dateFrom) {
+    $where[] = "DATE(sm.created_at) >= :date_from";
+    $params['date_from'] = $dateFrom;
+}
+
+if ($dateTo) {
+    $where[] = "DATE(sm.created_at) <= :date_to";
+    $params['date_to'] = $dateTo;
+}
+
+if ($search) {
+    $where[] = "(p.model ILIKE :search OR b.name ILIKE :search OR sm.reason ILIKE :search)";
+    $params['search'] = "%$search%";
+}
+
 $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+// Export CSV
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    $allMovements = fetchAll(
+        "SELECT sm.*, p.model as phone_model, b.name as brand_name, u.username
+         FROM stock_movements sm
+         LEFT JOIN phones p ON sm.phone_id = p.id
+         LEFT JOIN brands b ON p.brand_id = b.id
+         LEFT JOIN users u ON sm.user_id = u.id
+         $whereClause
+         ORDER BY sm.created_at DESC",
+        $params
+    );
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=mouvements_' . date('Y-m-d') . '.csv');
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
+    fputcsv($out, ['Date', 'Téléphone', 'Type', 'Quantité', 'Raison', 'Utilisateur'], ';');
+    foreach ($allMovements as $mv) {
+        fputcsv($out, [
+            date('d/m/Y H:i', strtotime($mv['created_at'])),
+            ($mv['brand_name'] ?? '') . ' ' . $mv['phone_model'],
+            $mv['type'] === 'IN' ? 'Entrée' : 'Sortie',
+            ($mv['type'] === 'IN' ? '+' : '-') . $mv['quantity'],
+            $mv['reason'] ?? '',
+            $mv['username'] ?? 'Système'
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 // Compter le total
-$countSql = "SELECT COUNT(*) as total FROM stock_movements sm LEFT JOIN phones p ON sm.phone_id = p.id $whereClause";
+$countSql = "SELECT COUNT(*) as total FROM stock_movements sm
+             LEFT JOIN phones p ON sm.phone_id = p.id
+             LEFT JOIN brands b ON p.brand_id = b.id
+             $whereClause";
 $total = fetchOne($countSql, $params)['total'];
 $totalPages = ceil($total / $perPage);
 
@@ -56,16 +109,31 @@ $phones = fetchAll(
     $uf['params']
 );
 
-require_once __DIR__ . '/../../includes/header.php';
+// AJAX support
+$isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
+if (!$isAjax) {
+    require_once __DIR__ . '/../../includes/header.php';
+}
 ?>
 
 <div class="card">
     <div class="card-header">
         <h1 class="card-title">Historique des mouvements de stock</h1>
-        <a href="/pages/stock/adjust.php" class="btn btn-primary">+ Nouveau mouvement</a>
+        <div class="btn-group">
+            <a href="/pages/stock/adjust.php" class="btn btn-primary">+ Nouveau mouvement</a>
+            <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn-export" title="Exporter CSV">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                CSV
+            </a>
+            <button class="btn-compact-toggle" onclick="toggleCompactMode()">Compact</button>
+        </div>
     </div>
 
     <form method="GET" class="search-bar">
+        <input type="text" name="search" class="form-control" placeholder="Rechercher modèle, raison..."
+               value="<?= htmlspecialchars($search) ?>">
         <select name="phone" class="form-control">
             <option value="">Tous les téléphones</option>
             <?php foreach ($phones as $phone): ?>
@@ -74,11 +142,15 @@ require_once __DIR__ . '/../../includes/header.php';
                 </option>
             <?php endforeach; ?>
         </select>
-        <select name="type" class="form-control" style="max-width: 200px;">
+        <select name="type" class="form-control" style="max-width: 160px;">
             <option value="">Tous les types</option>
             <option value="IN" <?= $typeFilter === 'IN' ? 'selected' : '' ?>>Entrées</option>
             <option value="OUT" <?= $typeFilter === 'OUT' ? 'selected' : '' ?>>Sorties</option>
         </select>
+        <input type="date" name="date_from" class="form-control" style="max-width: 170px;"
+               value="<?= htmlspecialchars($dateFrom) ?>" title="Date début">
+        <input type="date" name="date_to" class="form-control" style="max-width: 170px;"
+               value="<?= htmlspecialchars($dateTo) ?>" title="Date fin">
         <button type="submit" class="btn btn-primary">Filtrer</button>
         <a href="/pages/stock/movements.php" class="btn btn-outline">Réinitialiser</a>
     </form>
@@ -132,19 +204,19 @@ require_once __DIR__ . '/../../includes/header.php';
     <?php if ($totalPages > 1): ?>
         <div class="pagination">
             <?php if ($page > 1): ?>
-                <a href="?page=<?= $page - 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>">Précédent</a>
+                <a href="?page=<?= $page - 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Précédent</a>
             <?php endif; ?>
 
             <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
                 <?php if ($i == $page): ?>
                     <span class="active"><?= $i ?></span>
                 <?php else: ?>
-                    <a href="?page=<?= $i ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>"><?= $i ?></a>
+                    <a href="?page=<?= $i ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>"><?= $i ?></a>
                 <?php endif; ?>
             <?php endfor; ?>
 
             <?php if ($page < $totalPages): ?>
-                <a href="?page=<?= $page + 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>">Suivant</a>
+                <a href="?page=<?= $page + 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Suivant</a>
             <?php endif; ?>
         </div>
     <?php endif; ?>
@@ -154,4 +226,6 @@ require_once __DIR__ . '/../../includes/header.php';
     </p>
 </div>
 
+<?php if (!$isAjax): ?>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+<?php endif; ?>

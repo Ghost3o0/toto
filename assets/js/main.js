@@ -108,6 +108,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize AJAX search
     initAjaxSearch();
 
+    // Initialize hide values toggle
+    initHideValues();
+
+    // Initialize compact mode
+    initCompactMode();
+
     // Gestion des modales
     window.openModal = function(modalId) {
         const modal = document.getElementById(modalId);
@@ -214,6 +220,108 @@ function initAjaxSearch() {
                 searchInput.classList.remove('loading');
             }
         }, 300);
+    });
+}
+
+// =====================================================
+// Hide/Show Values Toggle
+// =====================================================
+function initHideValues() {
+    const hidden = localStorage.getItem('hide_values') === 'true';
+    if (hidden) {
+        applyHideValues(true);
+    }
+}
+
+function toggleHideValues() {
+    const isHidden = localStorage.getItem('hide_values') === 'true';
+    const newState = !isHidden;
+    localStorage.setItem('hide_values', newState);
+    applyHideValues(newState);
+}
+
+function applyHideValues(hide) {
+    document.querySelectorAll('.stat-value[data-monetary="true"]').forEach(el => {
+        if (hide) {
+            el.classList.add('value-hidden');
+        } else {
+            el.classList.remove('value-hidden');
+        }
+    });
+    // Update button icon
+    const btn = document.querySelector('.btn-toggle-values');
+    if (btn) {
+        btn.innerHTML = hide
+            ? '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Afficher'
+            : '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Masquer';
+    }
+}
+
+// =====================================================
+// Compact Mode Toggle
+// =====================================================
+function initCompactMode() {
+    const compact = localStorage.getItem('table_compact') === 'true';
+    if (compact) {
+        applyCompactMode(true);
+    }
+}
+
+function toggleCompactMode() {
+    const isCompact = localStorage.getItem('table_compact') === 'true';
+    const newState = !isCompact;
+    localStorage.setItem('table_compact', newState);
+    applyCompactMode(newState);
+}
+
+function applyCompactMode(compact) {
+    document.querySelectorAll('table').forEach(table => {
+        if (compact) {
+            table.classList.add('table-compact');
+        } else {
+            table.classList.remove('table-compact');
+        }
+    });
+    const btn = document.querySelector('.btn-compact-toggle');
+    if (btn) {
+        btn.classList.toggle('active', compact);
+        btn.textContent = compact ? 'Normal' : 'Compact';
+    }
+}
+
+// =====================================================
+// Counter Animation
+// =====================================================
+function animateCounter(element, target, duration) {
+    if (!element || isNaN(target)) return;
+    const start = 0;
+    const startTime = performance.now();
+    const isMonetary = element.getAttribute('data-monetary') === 'true';
+    const suffix = element.getAttribute('data-suffix') || '';
+
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out quad
+        const eased = 1 - (1 - progress) * (1 - progress);
+        const current = Math.round(start + (target - start) * eased);
+
+        const formatted = new Intl.NumberFormat('fr-FR').format(current);
+        element.textContent = formatted + (suffix ? ' ' + suffix : '');
+
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+    requestAnimationFrame(update);
+}
+
+function initCounterAnimations() {
+    document.querySelectorAll('.stat-value[data-target]').forEach(el => {
+        const target = parseFloat(el.getAttribute('data-target'));
+        if (!isNaN(target) && target > 0) {
+            animateCounter(el, target, 800);
+        }
     });
 }
 
