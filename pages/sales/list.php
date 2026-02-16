@@ -111,11 +111,11 @@ if (!$isAjax) {
     <form method="GET" class="search-bar">
         <input type="text" name="search" class="form-control" placeholder="N° facture, client..."
                value="<?= htmlspecialchars($search) ?>">
-        <input type="date" name="date_from" class="form-control" style="max-width: 170px;"
-               value="<?= htmlspecialchars($dateFrom) ?>" placeholder="Date début" title="Date début">
-        <input type="date" name="date_to" class="form-control" style="max-width: 170px;"
-               value="<?= htmlspecialchars($dateTo) ?>" placeholder="Date fin" title="Date fin">
-        <select name="status" class="form-control" style="max-width: 200px;">
+        <input type="date" name="date_from" class="form-control"
+               value="<?= htmlspecialchars($dateFrom) ?>" title="Date début">
+        <input type="date" name="date_to" class="form-control"
+               value="<?= htmlspecialchars($dateTo) ?>" title="Date fin">
+        <select name="status" class="form-control">
             <option value="">Tous les statuts</option>
             <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Terminée</option>
             <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Annulée</option>

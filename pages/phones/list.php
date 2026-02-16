@@ -116,7 +116,7 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
 
     <form method="GET" class="search-bar">
-        <div style="display: flex; gap: 0.5rem; flex: 1; min-width: 200px;">
+        <div style="display: flex; gap: 0.5rem; flex: 1;">
             <input type="text" name="search" id="search-input" class="form-control" placeholder="Rechercher modèle, code-barres..."
                    value="<?= htmlspecialchars($search) ?>">
             <button type="button" onclick="openBarcodeScanner(code => { document.getElementById('search-input').value = code; document.getElementById('search-input').form.submit(); })" class="btn btn-outline" title="Scanner">
@@ -125,7 +125,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 </svg>
             </button>
         </div>
-        <select name="brand" class="form-control" style="max-width: 200px;">
+        <select name="brand" class="form-control">
             <option value="">Toutes les marques</option>
             <?php foreach ($brands as $brand): ?>
                 <option value="<?= $brand['id'] ?>" <?= $brandFilter == $brand['id'] ? 'selected' : '' ?>>
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 </option>
             <?php endforeach; ?>
         </select>
-        <select name="stock" class="form-control" style="max-width: 200px;">
+        <select name="stock" class="form-control">
             <option value="">Tout le stock</option>
             <option value="low" <?= $stockFilter === 'low' ? 'selected' : '' ?>>Stock bas</option>
         </select>

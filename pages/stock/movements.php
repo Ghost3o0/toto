@@ -142,14 +142,14 @@ if (!$isAjax) {
                 </option>
             <?php endforeach; ?>
         </select>
-        <select name="type" class="form-control" style="max-width: 160px;">
+        <select name="type" class="form-control">
             <option value="">Tous les types</option>
             <option value="IN" <?= $typeFilter === 'IN' ? 'selected' : '' ?>>Entrées</option>
             <option value="OUT" <?= $typeFilter === 'OUT' ? 'selected' : '' ?>>Sorties</option>
         </select>
-        <input type="date" name="date_from" class="form-control" style="max-width: 170px;"
+        <input type="date" name="date_from" class="form-control"
                value="<?= htmlspecialchars($dateFrom) ?>" title="Date début">
-        <input type="date" name="date_to" class="form-control" style="max-width: 170px;"
+        <input type="date" name="date_to" class="form-control"
                value="<?= htmlspecialchars($dateTo) ?>" title="Date fin">
         <button type="submit" class="btn btn-primary">Filtrer</button>
         <a href="/pages/stock/movements.php" class="btn btn-outline">Réinitialiser</a>
