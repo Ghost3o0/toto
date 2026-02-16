@@ -581,6 +581,11 @@ textarea.form-control {
     height: 250px;
 }
 
+/* Dashboard small tables don't need min-width */
+.charts-grid table {
+    min-width: auto;
+}
+
 /* =====================================================
    Stock Status
    ===================================================== */
