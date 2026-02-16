@@ -103,7 +103,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card">
     <div class="card-header">
         <h1 class="card-title">Téléphones en stock</h1>
-        <div class="btn-group">
+        <div class="btn-group no-collapse">
             <a href="/pages/phones/add.php" class="btn btn-primary">+ Ajouter un téléphone</a>
             <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn-export" title="Exporter CSV">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

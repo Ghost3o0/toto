@@ -91,7 +91,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                 headers.forEach(function(h){
                     if(h.querySelector('.action-hamburger')) return; // already added
                     var btnGroup = h.querySelector('.btn-group');
-                    if(!btnGroup) return;
+                    if(!btnGroup || btnGroup.classList.contains('no-collapse')) return;
                     var btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'action-hamburger';

@@ -719,6 +719,10 @@ textarea.form-control {
     display: none;
 }
 
+.card .card-header .btn-group.no-collapse {
+    display: flex;
+}
+
 @media (min-width: 640px) {
     .navbar-toggle { display: none; }
     .navbar-menu { display: flex !important; }

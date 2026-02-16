@@ -119,7 +119,7 @@ if (!$isAjax) {
 <div class="card">
     <div class="card-header">
         <h1 class="card-title">Historique des mouvements de stock</h1>
-        <div class="btn-group">
+        <div class="btn-group no-collapse">
             <a href="/pages/stock/adjust.php" class="btn btn-primary">+ Nouveau mouvement</a>
             <a href="?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn-export" title="Exporter CSV">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
