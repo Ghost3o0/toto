@@ -40,18 +40,6 @@ $stats['monthly_invoices'] = fetchOne(
     $salesParams
 )['total'];
 
-// Répartition par marque (pour le graphique)
-$brandDistribution = fetchAll(
-    "SELECT b.name, COALESCE(SUM(p.quantity), 0) as total
-     FROM brands b
-     LEFT JOIN phones p ON b.id = p.brand_id AND p.user_id IN ($ufIn)
-     GROUP BY b.id, b.name
-     HAVING COALESCE(SUM(p.quantity), 0) > 0
-     ORDER BY total DESC
-     LIMIT 10",
-    $ufParams
-);
-
 // Top 5 des téléphones les plus vendus (sorties)
 $topSold = fetchAll(
     "SELECT p.model, b.name as brand_name, COALESCE(SUM(sm.quantity), 0) as total_sold
@@ -133,32 +121,6 @@ $yesterdayUnits = fetchOne(
      LEFT JOIN phones p ON sm.phone_id = p.id
      WHERE sm.type = 'OUT' AND p.user_id IN ($ufIn)
      AND DATE(sm.created_at) = CURRENT_DATE - 1",
-    $ufParams
-);
-
-// Mouvements des 7 derniers jours (pour le graphique)
-$weekMovements = fetchAll(
-    "SELECT DATE(sm.created_at) as date,
-            SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE 0 END) as entries,
-            SUM(CASE WHEN sm.type = 'OUT' THEN sm.quantity ELSE 0 END) as exits
-     FROM stock_movements sm
-     LEFT JOIN phones p ON sm.phone_id = p.id
-     WHERE sm.created_at >= CURRENT_DATE - INTERVAL '7 days' AND p.user_id IN ($ufIn)
-     GROUP BY DATE(sm.created_at)
-     ORDER BY date",
-    $ufParams
-);
-
-// Ventes des 30 derniers jours (pour le graphique ligne)
-$monthlySalesChart = fetchAll(
-    "SELECT DATE(created_at) as date,
-            COUNT(*) as nb_ventes,
-            COALESCE(SUM(total_amount), 0) as total_montant
-     FROM invoices
-     WHERE user_id IN ($ufIn) AND status = 'completed'
-     AND created_at >= CURRENT_DATE - INTERVAL '30 days'
-     GROUP BY DATE(created_at)
-     ORDER BY date",
     $ufParams
 );
 
@@ -341,37 +303,6 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 </div>
 
-<!-- Graphique ventes 30 jours -->
-<div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header">
-        <h2 class="card-title">Ventes des 30 derniers jours</h2>
-    </div>
-    <div class="chart-container-wide">
-        <canvas id="salesChart30"></canvas>
-    </div>
-</div>
-
-<!-- Graphiques -->
-<div class="charts-grid">
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">Répartition par marque</h2>
-        </div>
-        <div class="chart-container">
-            <canvas id="brandChart"></canvas>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">Mouvements (7 derniers jours)</h2>
-        </div>
-        <div class="chart-container">
-            <canvas id="movementsChart"></canvas>
-        </div>
-    </div>
-</div>
-
 <!-- Alertes et informations -->
 <div class="charts-grid">
     <!-- Stock bas -->
@@ -491,135 +422,12 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-// Données pour les graphiques
-const brandData = <?= json_encode($brandDistribution) ?>;
-const movementsData = <?= json_encode($weekMovements) ?>;
-const salesChart30Data = <?= json_encode($monthlySalesChart) ?>;
-
 // Counter animations
 initCounterAnimations();
 
 // Apply hide values if previously set
 if (localStorage.getItem('hide_values') === 'true') {
     applyHideValues(true);
-}
-
-// Graphique ventes 30 jours
-if (salesChart30Data.length > 0) {
-    new Chart(document.getElementById('salesChart30'), {
-        type: 'line',
-        data: {
-            labels: salesChart30Data.map(d => {
-                const dt = new Date(d.date);
-                return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-            }),
-            datasets: [{
-                label: 'Nombre de ventes',
-                data: salesChart30Data.map(d => d.nb_ventes),
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                fill: true,
-                tension: 0.3,
-                yAxisID: 'y'
-            }, {
-                label: 'Montant (Ar)',
-                data: salesChart30Data.map(d => d.total_montant),
-                borderColor: '#22c55e',
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                fill: true,
-                tension: 0.3,
-                yAxisID: 'y1'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
-            scales: {
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    beginAtZero: true,
-                    title: { display: true, text: 'Ventes' }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    beginAtZero: true,
-                    title: { display: true, text: 'Montant (Ar)' },
-                    grid: { drawOnChartArea: false }
-                }
-            }
-        }
-    });
-} else {
-    document.getElementById('salesChart30').parentElement.innerHTML =
-        '<p class="text-muted text-center" style="padding: 2rem;">Aucune vente sur les 30 derniers jours</p>';
-}
-
-// Graphique répartition par marque
-if (brandData.length > 0) {
-    new Chart(document.getElementById('brandChart'), {
-        type: 'doughnut',
-        data: {
-            labels: brandData.map(b => b.name),
-            datasets: [{
-                data: brandData.map(b => b.total),
-                backgroundColor: [
-                    '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
-                    '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right'
-                }
-            }
-        }
-    });
-}
-
-// Graphique mouvements
-if (movementsData.length > 0) {
-    new Chart(document.getElementById('movementsChart'), {
-        type: 'bar',
-        data: {
-            labels: movementsData.map(m => {
-                const d = new Date(m.date);
-                return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
-            }),
-            datasets: [{
-                label: 'Entrées',
-                data: movementsData.map(m => m.entries),
-                backgroundColor: '#22c55e'
-            }, {
-                label: 'Sorties',
-                data: movementsData.map(m => m.exits),
-                backgroundColor: '#ef4444'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-} else {
-    document.getElementById('movementsChart').parentElement.innerHTML =
-        '<p class="text-muted text-center" style="padding: 2rem;">Aucun mouvement cette semaine</p>';
 }
 </script>
 
