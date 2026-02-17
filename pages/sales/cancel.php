@@ -40,36 +40,50 @@ try {
         ['id' => $id]
     );
 
+    $warnings = [];
     foreach ($lines as $line) {
         // 3. Restaurer les IMEI liés à cette ligne en 'in_stock'
-        execute(
+        $restoredImeis = execute(
             "UPDATE phone_imeis SET status = 'in_stock' WHERE id IN (SELECT phone_imei_id FROM invoice_line_imeis WHERE invoice_line_id = :line_id)",
             ['line_id' => $line['line_id']]
         );
 
         // 4. Restaurer la quantité en stock
         if ($line['phone_id']) {
-            execute(
-                "UPDATE phones SET quantity = quantity + :qty, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
-                ['qty' => $line['quantity'], 'id' => $line['phone_id']]
-            );
+            // Vérifier que le téléphone existe encore
+            $phoneExists = fetchOne("SELECT id FROM phones WHERE id = :id", ['id' => $line['phone_id']]);
+            if ($phoneExists) {
+                execute(
+                    "UPDATE phones SET quantity = quantity + :qty, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+                    ['qty' => $line['quantity'], 'id' => $line['phone_id']]
+                );
 
-            // 5. Créer un mouvement de stock IN pour traçabilité
-            execute(
-                "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason) VALUES (:pid, :uid, 'IN', :qty, :reason)",
-                [
-                    'pid' => $line['phone_id'],
-                    'uid' => $_SESSION['user_id'],
-                    'qty' => $line['quantity'],
-                    'reason' => "Annulation vente {$invoice['invoice_number']}"
-                ]
-            );
+                // 5. Créer un mouvement de stock IN pour traçabilité
+                execute(
+                    "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason) VALUES (:pid, :uid, 'IN', :qty, :reason)",
+                    [
+                        'pid' => $line['phone_id'],
+                        'uid' => $_SESSION['user_id'],
+                        'qty' => $line['quantity'],
+                        'reason' => "Annulation vente {$invoice['invoice_number']}"
+                    ]
+                );
+            } else {
+                $warnings[] = "Le téléphone (ID: {$line['phone_id']}) n'existe plus, stock non restauré pour cette ligne.";
+            }
+        } else {
+            $warnings[] = "Une ligne n'a plus de téléphone associé, stock non restauré.";
         }
     }
 
     $pdo->commit();
-    $_SESSION['flash_message'] = "Facture {$invoice['invoice_number']} annulée. Le stock et les IMEI ont été restaurés.";
-    $_SESSION['flash_type'] = 'success';
+    if (!empty($warnings)) {
+        $_SESSION['flash_message'] = "Facture {$invoice['invoice_number']} annulée. Attention : " . implode(' ', $warnings);
+        $_SESSION['flash_type'] = 'warning';
+    } else {
+        $_SESSION['flash_message'] = "Facture {$invoice['invoice_number']} annulée. Le stock et les IMEI ont été restaurés.";
+        $_SESSION['flash_type'] = 'success';
+    }
 } catch (Exception $e) {
     $pdo->rollBack();
     $_SESSION['flash_message'] = "Erreur lors de l'annulation : " . $e->getMessage();

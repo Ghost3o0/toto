@@ -45,7 +45,7 @@ $topSold = fetchAll(
     "SELECT p.model, b.name as brand_name, COALESCE(SUM(sm.quantity), 0) as total_sold
      FROM phones p
      LEFT JOIN brands b ON p.brand_id = b.id
-     LEFT JOIN stock_movements sm ON p.id = sm.phone_id AND sm.type = 'OUT'
+     LEFT JOIN stock_movements sm ON p.id = sm.phone_id AND sm.type = 'OUT' AND sm.status != 'annule'
      WHERE p.user_id IN ($ufIn)
      GROUP BY p.id, p.model, b.name
      ORDER BY total_sold DESC
@@ -101,7 +101,7 @@ $todayUnits = fetchOne(
     "SELECT COALESCE(SUM(sm.quantity), 0) as total
      FROM stock_movements sm
      LEFT JOIN phones p ON sm.phone_id = p.id
-     WHERE sm.type = 'OUT' AND p.user_id IN ($ufIn)
+     WHERE sm.type = 'OUT' AND sm.status != 'annule' AND p.user_id IN ($ufIn)
      AND DATE(sm.created_at) = CURRENT_DATE",
     $ufParams
 );
@@ -119,7 +119,7 @@ $yesterdayUnits = fetchOne(
     "SELECT COALESCE(SUM(sm.quantity), 0) as total
      FROM stock_movements sm
      LEFT JOIN phones p ON sm.phone_id = p.id
-     WHERE sm.type = 'OUT' AND p.user_id IN ($ufIn)
+     WHERE sm.type = 'OUT' AND sm.status != 'annule' AND p.user_id IN ($ufIn)
      AND DATE(sm.created_at) = CURRENT_DATE - 1",
     $ufParams
 );

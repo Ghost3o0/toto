@@ -160,6 +160,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ['mid' => $movementId, 'iid' => $imeiId]
                         );
                     }
+
+                    // Si le mouvement OUT est directement confirmé, créer une facture
+                    if ($status === 'confirme') {
+                        $phoneInfo = fetchOne(
+                            "SELECT p.model, p.price, b.name as brand_name FROM phones p LEFT JOIN brands b ON p.brand_id = b.id WHERE p.id = :id",
+                            ['id' => $phoneId]
+                        );
+                        $invoiceNumber = generateInvoiceNumber();
+                        $unitPrice = $phoneInfo['price'] ?? 0;
+                        $totalAmount = $unitPrice * $quantity;
+
+                        execute(
+                            "INSERT INTO invoices (invoice_number, user_id, client_name, total_amount, notes) VALUES (:num, :uid, :name, :total, :notes)",
+                            [
+                                'num' => $invoiceNumber,
+                                'uid' => $_SESSION['user_id'],
+                                'name' => 'Client (mouvement stock)',
+                                'total' => $totalAmount,
+                                'notes' => $reason ?: null
+                            ]
+                        );
+                        $invoiceId = lastInsertId();
+
+                        execute(
+                            "INSERT INTO invoice_lines (invoice_id, phone_id, phone_model, phone_brand, quantity, unit_price, line_total) VALUES (:iid, :pid, :model, :brand, :qty, :price, :total)",
+                            [
+                                'iid' => $invoiceId,
+                                'pid' => $phoneId,
+                                'model' => $phoneInfo['model'] ?? '',
+                                'brand' => $phoneInfo['brand_name'] ?? '',
+                                'qty' => $quantity,
+                                'price' => $unitPrice,
+                                'total' => $totalAmount
+                            ]
+                        );
+                        $invoiceLineId = lastInsertId();
+
+                        foreach ($selectedImeiIds as $imeiId) {
+                            execute(
+                                "INSERT INTO invoice_line_imeis (invoice_line_id, phone_imei_id) VALUES (:line_id, :imei_id)",
+                                ['line_id' => $invoiceLineId, 'imei_id' => $imeiId]
+                            );
+                        }
+                    }
                 }
 
                 $pdo->commit();
@@ -229,7 +273,7 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="">
+    <form method="POST" action="" id="adjust-form">
         <?php csrfField(); ?>
 
         <div class="form-group">
@@ -427,6 +471,14 @@ function updateStockInfo(select) {
         generateOutImeiCheckboxes();
     }
 }
+
+// Protection double-soumission
+document.getElementById('adjust-form').addEventListener('submit', function(event) {
+    const btn = this.querySelector('button[type="submit"]');
+    if (btn.disabled) { event.preventDefault(); return; }
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+});
 
 // Générer les champs au chargement
 document.addEventListener('DOMContentLoaded', function() {

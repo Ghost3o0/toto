@@ -170,10 +170,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Marquer les IMEI comme vendus et créer les liaisons
                     foreach ($line['imei_ids'] as $imeiId) {
-                        execute(
+                        $affected = execute(
                             "UPDATE phone_imeis SET status = 'sold' WHERE id = :id AND status = 'in_stock'",
                             ['id' => $imeiId]
                         );
+                        if ($affected === 0) {
+                            throw new Exception("L'IMEI (ID: $imeiId) n'a pas pu être marqué comme vendu.");
+                        }
                         execute(
                             "INSERT INTO invoice_line_imeis (invoice_line_id, phone_imei_id) VALUES (:line_id, :imei_id)",
                             ['line_id' => $invoiceLineId, 'imei_id' => $imeiId]
@@ -424,6 +427,14 @@ function updateLineTotals() {
     });
     document.getElementById('grand-total').textContent = grandTotal.toLocaleString('fr-FR') + ' Ar';
 }
+
+// Protection double-soumission
+document.getElementById('sale-form').addEventListener('submit', function() {
+    const btn = this.querySelector('button[type="submit"]');
+    if (btn.disabled) { event.preventDefault(); return; }
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+});
 </script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
