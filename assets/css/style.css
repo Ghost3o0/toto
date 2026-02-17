@@ -338,6 +338,17 @@ table tbody tr:active {
     text-decoration: none;
 }
 
+.btn-info {
+    background-color: var(--info-color);
+    color: white;
+}
+
+.btn-info:hover,
+.btn-info:active {
+    background-color: #2563eb;
+    text-decoration: none;
+}
+
 .btn-outline {
     background-color: transparent;
     border: 1px solid var(--border-color);

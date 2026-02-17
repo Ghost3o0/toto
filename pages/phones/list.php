@@ -186,6 +186,7 @@ require_once __DIR__ . '/../../includes/header.php';
                             <td>
                                 <div class="btn-group">
                                     <a href="/pages/stock/adjust.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-success">Stock</a>
+                                    <button type="button" class="btn btn-sm btn-info" onclick="showImeis(<?= $phone['id'] ?>, '<?= htmlspecialchars(addslashes($phone['model']), ENT_QUOTES) ?>')">IMEI</button>
                                     <a href="/pages/phones/edit.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-outline">Modifier</a>
                                     <a href="/pages/phones/delete.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-danger"
                                        onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce téléphone ?')">Supprimer</a>
@@ -222,5 +223,72 @@ require_once __DIR__ . '/../../includes/header.php';
         <?= $total ?> téléphone(s) au total
     </p>
 </div>
+
+<!-- Modale IMEI -->
+<div class="modal-overlay" id="imeiModalOverlay" onclick="closeImeiModal()">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width: 600px;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="modal-title" id="imeiModalTitle">IMEI</h3>
+            <button type="button" class="btn btn-sm btn-outline" onclick="closeImeiModal()">&times;</button>
+        </div>
+        <div id="imeiModalBody">
+            <p class="text-muted text-center">Chargement...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function showImeis(phoneId, phoneName) {
+    var overlay = document.getElementById('imeiModalOverlay');
+    var title = document.getElementById('imeiModalTitle');
+    var body = document.getElementById('imeiModalBody');
+
+    title.textContent = 'IMEI - ' + phoneName;
+    body.innerHTML = '<p class="text-muted text-center">Chargement...</p>';
+    overlay.classList.add('active');
+
+    fetch('/pages/phones/get-imeis.php?id=' + phoneId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.imeis || data.imeis.length === 0) {
+                body.innerHTML = '<p class="text-muted text-center">Aucun IMEI enregistré</p>';
+                return;
+            }
+            var html = '<div class="table-container"><table><thead><tr>'
+                + '<th>#</th><th>IMEI</th><th>Statut</th><th>Date</th>'
+                + '</tr></thead><tbody>';
+            data.imeis.forEach(function(imei, i) {
+                var badge = imei.status === 'in_stock'
+                    ? '<span class="badge badge-success">En stock</span>'
+                    : '<span class="badge badge-warning">Vendu</span>';
+                var date = new Date(imei.created_at);
+                var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                html += '<tr><td>' + (i + 1) + '</td>'
+                    + '<td><code>' + escapeHtml(imei.imei) + '</code></td>'
+                    + '<td>' + badge + '</td>'
+                    + '<td>' + dateStr + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+            body.innerHTML = html;
+        })
+        .catch(function() {
+            body.innerHTML = '<p class="text-muted text-center">Erreur lors du chargement</p>';
+        });
+}
+
+function closeImeiModal() {
+    document.getElementById('imeiModalOverlay').classList.remove('active');
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeImeiModal();
+});
+</script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
