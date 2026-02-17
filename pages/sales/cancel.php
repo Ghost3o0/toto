@@ -60,7 +60,7 @@ try {
 
                 // 5. Créer un mouvement de stock IN pour traçabilité
                 execute(
-                    "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason) VALUES (:pid, :uid, 'IN', :qty, :reason)",
+                    "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason, status) VALUES (:pid, :uid, 'IN', :qty, :reason, 'confirme')",
                     [
                         'pid' => $line['phone_id'],
                         'uid' => $_SESSION['user_id'],

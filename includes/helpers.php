@@ -56,7 +56,8 @@ function generateInvoiceNumber(): string {
     $last = fetchOne(
         "SELECT invoice_number FROM invoices
          WHERE invoice_number LIKE :prefix
-         ORDER BY invoice_number DESC LIMIT 1",
+         ORDER BY invoice_number DESC LIMIT 1
+         FOR UPDATE",
         ['prefix' => "FAC-$year-%"]
     );
 

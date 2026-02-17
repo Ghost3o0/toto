@@ -4,7 +4,19 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/helpers.php';
 requireLogin();
 
-$id = intval($_GET['id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /pages/phones/list.php');
+    exit;
+}
+
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    $_SESSION['flash_message'] = 'Token de sécurité invalide.';
+    $_SESSION['flash_type'] = 'danger';
+    header('Location: /pages/phones/list.php');
+    exit;
+}
+
+$id = intval($_POST['id'] ?? 0);
 if (!$id) {
     header('Location: /pages/phones/list.php');
     exit;

@@ -3,8 +3,20 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 requireLogin();
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /pages/partners/list.php');
+    exit;
+}
+
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    $_SESSION['flash_message'] = 'Token de sécurité invalide.';
+    $_SESSION['flash_type'] = 'danger';
+    header('Location: /pages/partners/list.php');
+    exit;
+}
+
 $userId = $_SESSION['user_id'];
-$id = intval($_GET['id'] ?? 0);
+$id = intval($_POST['id'] ?? 0);
 
 if (!$id) {
     header('Location: /pages/partners/list.php');

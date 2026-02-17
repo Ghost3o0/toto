@@ -66,11 +66,11 @@ require_once __DIR__ . '/../../includes/header.php';
                             <td><strong><?= htmlspecialchars($partner['partner_name']) ?></strong></td>
                             <td><?= date('d/m/Y', strtotime($partner['updated_at'])) ?></td>
                             <td>
-                                <a href="/pages/partners/remove.php?id=<?= $partner['id'] ?>"
-                                   class="btn btn-sm btn-danger"
-                                   onclick="return confirm('Supprimer ce partenariat ? Vous ne verrez plus le stock de ce partenaire.')">
-                                    Supprimer
-                                </a>
+                                <form method="POST" action="/pages/partners/remove.php" style="display:inline;" onsubmit="return confirm('Supprimer ce partenariat ? Vous ne verrez plus le stock de ce partenaire.')">
+                                    <?php csrfField(); ?>
+                                    <input type="hidden" name="id" value="<?= $partner['id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>

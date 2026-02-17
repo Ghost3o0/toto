@@ -188,8 +188,11 @@ require_once __DIR__ . '/../../includes/header.php';
                                     <a href="/pages/stock/adjust.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-success">Stock</a>
                                     <button type="button" class="btn btn-sm btn-info" onclick="showImeis(<?= $phone['id'] ?>, '<?= htmlspecialchars(addslashes($phone['model']), ENT_QUOTES) ?>')">IMEI</button>
                                     <a href="/pages/phones/edit.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-outline">Modifier</a>
-                                    <a href="/pages/phones/delete.php?id=<?= $phone['id'] ?>" class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce téléphone ?')">Supprimer</a>
+                                    <form method="POST" action="/pages/phones/delete.php" style="display:inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce téléphone ?')">
+                                        <?php csrfField(); ?>
+                                        <input type="hidden" name="id" value="<?= $phone['id'] ?>">
+                                        <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
