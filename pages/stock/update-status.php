@@ -61,12 +61,6 @@ $pdo->beginTransaction();
 
 try {
     if ($newStatus === 'confirme') {
-        // Update the movement status
-        execute(
-            "UPDATE stock_movements SET status = 'confirme' WHERE id = :id",
-            ['id' => $movementId]
-        );
-
         // Fetch phone info for invoice
         $phone = fetchOne(
             "SELECT p.model, p.price, b.name as brand_name
@@ -76,26 +70,46 @@ try {
             ['id' => $movement['phone_id']]
         );
 
-        // Fetch IMEIs linked to this movement
+        // Fetch IMEIs linked to this movement and validate they are still sold
         $movementImeis = fetchAll(
-            "SELECT phone_imei_id FROM stock_movement_imeis WHERE movement_id = :mid",
+            "SELECT smi.phone_imei_id, pi.status FROM stock_movement_imeis smi JOIN phone_imeis pi ON pi.id = smi.phone_imei_id WHERE smi.movement_id = :mid",
             ['mid' => $movementId]
         );
 
-        // Generate invoice
+        // Validate IMEI count matches movement quantity
+        if (count($movementImeis) !== intval($movement['quantity'])) {
+            throw new Exception("Le nombre d'IMEI (" . count($movementImeis) . ") ne correspond pas à la quantité du mouvement (" . $movement['quantity'] . ").");
+        }
+
+        // Validate all IMEIs are still marked as sold
+        foreach ($movementImeis as $mi) {
+            if ($mi['status'] !== 'sold') {
+                throw new Exception("Un IMEI lié à ce mouvement n'est plus marqué comme vendu. Vérifiez la cohérence des données.");
+            }
+        }
+
+        // Update the movement status
+        execute(
+            "UPDATE stock_movements SET status = 'confirme' WHERE id = :id",
+            ['id' => $movementId]
+        );
+
+        // Generate invoice with reason as note, not as client name
         $invoiceNumber = generateInvoiceNumber();
-        $clientName = trim($movement['reason'] ?? '') ?: 'Client';
+        $clientName = 'Client (mouvement stock)';
+        $notes = trim($movement['reason'] ?? '') ?: null;
         $unitPrice = $phone['price'] ?? 0;
         $totalAmount = $unitPrice * $movement['quantity'];
 
         execute(
-            "INSERT INTO invoices (invoice_number, user_id, client_name, total_amount)
-             VALUES (:num, :uid, :name, :total)",
+            "INSERT INTO invoices (invoice_number, user_id, client_name, total_amount, notes)
+             VALUES (:num, :uid, :name, :total, :notes)",
             [
                 'num' => $invoiceNumber,
                 'uid' => $movement['user_id'],
                 'name' => $clientName,
-                'total' => $totalAmount
+                'total' => $totalAmount,
+                'notes' => $notes
             ]
         );
         $invoiceId = lastInsertId();

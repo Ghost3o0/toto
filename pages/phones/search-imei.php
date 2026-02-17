@@ -11,8 +11,7 @@ $results = [];
 
 if ($searchImei) {
     $results = fetchAll(
-        "SELECT pi.imei, p.model, b.name as brand_name, p.price, p.quantity,
-                CASE WHEN ili.id IS NOT NULL THEN 'vendu' ELSE 'en_stock' END as statut,
+        "SELECT pi.imei, pi.status as statut, p.model, b.name as brand_name, p.price, p.quantity,
                 i.invoice_number, i.client_name, i.created_at as sale_date
          FROM phone_imeis pi
          JOIN phones p ON pi.phone_id = p.id
@@ -67,14 +66,14 @@ require_once __DIR__ . '/../../includes/header.php';
                             <td><?= htmlspecialchars(($r['brand_name'] ?? '') . ' ' . $r['model']) ?></td>
                             <td><?= number_format($r['price'], 0, ',', ' ') ?> Ar</td>
                             <td>
-                                <?php if ($r['statut'] === 'vendu'): ?>
+                                <?php if ($r['statut'] === 'sold'): ?>
                                     <span class="badge badge-danger">Vendu</span>
                                 <?php else: ?>
                                     <span class="badge badge-success">En stock</span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($r['statut'] === 'vendu'): ?>
+                                <?php if ($r['statut'] === 'sold'): ?>
                                     <?= htmlspecialchars($r['client_name']) ?>
                                     - <?= htmlspecialchars($r['invoice_number']) ?>
                                     <br><small class="text-muted"><?= date('d/m/Y', strtotime($r['sale_date'])) ?></small>

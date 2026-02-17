@@ -103,6 +103,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'imei_ids' => $selectedImeiIds
                 ];
             }
+
+            // Vérifier qu'un même IMEI n'est pas sélectionné dans plusieurs lignes
+            $allImeiIds = [];
+            foreach ($validLines as $vl) {
+                foreach ($vl['imei_ids'] as $iid) {
+                    if (in_array($iid, $allImeiIds)) {
+                        $errors[] = "Un même IMEI est sélectionné dans plusieurs lignes.";
+                        break 2;
+                    }
+                    $allImeiIds[] = $iid;
+                }
+            }
         }
 
         if (empty($errors) && !empty($validLines)) {
@@ -130,6 +142,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // INSERT lignes + mouvements stock + IMEI
                 foreach ($validLines as $line) {
+                    // Re-vérifier les IMEI dans la transaction pour éviter les race conditions
+                    foreach ($line['imei_ids'] as $imeiId) {
+                        $check = fetchOne(
+                            "SELECT id FROM phone_imeis WHERE id = :id AND phone_id = :pid AND status = 'in_stock'",
+                            ['id' => $imeiId, 'pid' => $line['phone_id']]
+                        );
+                        if (!$check) {
+                            throw new Exception("L'IMEI (ID: $imeiId) a déjà été vendu par un autre utilisateur.");
+                        }
+                    }
+
                     execute(
                         "INSERT INTO invoice_lines (invoice_id, phone_id, phone_model, phone_brand, quantity, unit_price, line_total)
                          VALUES (:iid, :pid, :model, :brand, :qty, :price, :total)",
@@ -148,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Marquer les IMEI comme vendus et créer les liaisons
                     foreach ($line['imei_ids'] as $imeiId) {
                         execute(
-                            "UPDATE phone_imeis SET status = 'sold' WHERE id = :id",
+                            "UPDATE phone_imeis SET status = 'sold' WHERE id = :id AND status = 'in_stock'",
                             ['id' => $imeiId]
                         );
                         execute(

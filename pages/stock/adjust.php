@@ -83,6 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $selectedImeiIds = [];
         if (empty($errors) && $type === 'OUT') {
             $selectedImeiIds = array_filter(array_map('intval', $_POST['selected_imeis'] ?? []));
+            // Vérifier les doublons
+            if (count($selectedImeiIds) !== count(array_unique($selectedImeiIds))) {
+                $errors[] = 'Des IMEI en doublon ont été sélectionnés.';
+            }
             if (empty($selectedImeiIds)) {
                 $errors[] = 'Veuillez sélectionner au moins un IMEI à sortir.';
             } else {
@@ -121,17 +125,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Mettre à jour le stock
                 $newQuantity = $type === 'IN' ? $phone['quantity'] + $quantity : $phone['quantity'] - $quantity;
+                if ($newQuantity < 0) {
+                    throw new Exception("Stock insuffisant. Stock actuel : {$phone['quantity']}, quantité demandée : $quantity.");
+                }
                 execute(
                     "UPDATE phones SET quantity = :quantity, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
                     ['quantity' => $newQuantity, 'id' => $phoneId]
                 );
 
-                // Insérer les IMEI pour les entrées
+                // Insérer les IMEI pour les entrées et les lier au mouvement
                 if ($type === 'IN') {
                     foreach ($cleanImeis as $imei) {
                         execute(
                             "INSERT INTO phone_imeis (phone_id, imei) VALUES (:phone_id, :imei)",
                             ['phone_id' => $phoneId, 'imei' => $imei]
+                        );
+                        $imeiId = lastInsertId();
+                        execute(
+                            "INSERT INTO stock_movement_imeis (movement_id, phone_imei_id) VALUES (:mid, :iid)",
+                            ['mid' => $movementId, 'iid' => $imeiId]
                         );
                     }
                 }
