@@ -61,12 +61,70 @@ $pdo->beginTransaction();
 
 try {
     if ($newStatus === 'confirme') {
-        // Simply update the status - stock already decremented, IMEI already marked sold
+        // Update the movement status
         execute(
             "UPDATE stock_movements SET status = 'confirme' WHERE id = :id",
             ['id' => $movementId]
         );
-        $_SESSION['flash_message'] = 'Mouvement confirme avec succes.';
+
+        // Fetch phone info for invoice
+        $phone = fetchOne(
+            "SELECT p.model, p.price, b.name as brand_name
+             FROM phones p
+             LEFT JOIN brands b ON p.brand_id = b.id
+             WHERE p.id = :id",
+            ['id' => $movement['phone_id']]
+        );
+
+        // Fetch IMEIs linked to this movement
+        $movementImeis = fetchAll(
+            "SELECT phone_imei_id FROM stock_movement_imeis WHERE movement_id = :mid",
+            ['mid' => $movementId]
+        );
+
+        // Generate invoice
+        $invoiceNumber = generateInvoiceNumber();
+        $clientName = trim($movement['reason'] ?? '') ?: 'Client';
+        $unitPrice = $phone['price'] ?? 0;
+        $totalAmount = $unitPrice * $movement['quantity'];
+
+        execute(
+            "INSERT INTO invoices (invoice_number, user_id, client_name, total_amount)
+             VALUES (:num, :uid, :name, :total)",
+            [
+                'num' => $invoiceNumber,
+                'uid' => $movement['user_id'],
+                'name' => $clientName,
+                'total' => $totalAmount
+            ]
+        );
+        $invoiceId = lastInsertId();
+
+        // Create invoice line
+        execute(
+            "INSERT INTO invoice_lines (invoice_id, phone_id, phone_model, phone_brand, quantity, unit_price, line_total)
+             VALUES (:iid, :pid, :model, :brand, :qty, :price, :total)",
+            [
+                'iid' => $invoiceId,
+                'pid' => $movement['phone_id'],
+                'model' => $phone['model'] ?? '',
+                'brand' => $phone['brand_name'] ?? '',
+                'qty' => $movement['quantity'],
+                'price' => $unitPrice,
+                'total' => $totalAmount
+            ]
+        );
+        $invoiceLineId = lastInsertId();
+
+        // Link IMEIs to invoice line
+        foreach ($movementImeis as $mi) {
+            execute(
+                "INSERT INTO invoice_line_imeis (invoice_line_id, phone_imei_id) VALUES (:line_id, :imei_id)",
+                ['line_id' => $invoiceLineId, 'imei_id' => $mi['phone_imei_id']]
+            );
+        }
+
+        $_SESSION['flash_message'] = "Mouvement confirme. Facture $invoiceNumber creee.";
         $_SESSION['flash_type'] = 'success';
 
     } elseif ($newStatus === 'annule') {
