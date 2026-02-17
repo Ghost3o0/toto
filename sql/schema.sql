@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     type VARCHAR(10) CHECK (type IN ('IN', 'OUT')) NOT NULL,
     quantity INTEGER NOT NULL,
     reason VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'confirme' CHECK (status IN ('en_attente', 'confirme', 'annule')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -164,6 +165,17 @@ CREATE TABLE IF NOT EXISTS invoice_line_imeis (
 );
 CREATE INDEX IF NOT EXISTS idx_invoice_line_imeis_line ON invoice_line_imeis(invoice_line_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_line_imeis_imei ON invoice_line_imeis(phone_imei_id);
+
+-- =====================================================
+-- Table de liaison IMEI / mouvements de stock (sorties)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS stock_movement_imeis (
+    id SERIAL PRIMARY KEY,
+    movement_id INTEGER NOT NULL REFERENCES stock_movements(id) ON DELETE CASCADE,
+    phone_imei_id INTEGER NOT NULL REFERENCES phone_imeis(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_stock_movement_imeis_movement ON stock_movement_imeis(movement_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movement_imeis_imei ON stock_movement_imeis(phone_imei_id);
 
 -- =====================================================
 -- Table des tentatives de login (rate limiting)

@@ -97,7 +97,7 @@ const chatbotResponses = [
     // ===================== STOCK - AJUSTEMENT =====================
     {
         keywords: ['ajuster stock', 'ajustement', 'mouvement stock', 'entrée stock', 'sortie stock', 'réapprovisionner'],
-        response: "Pour ajuster le stock :\n1. Cliquez sur \"Stock\" à côté d'un téléphone, ou \"+ Nouveau mouvement\" dans la page Stock\n2. Sélectionnez le téléphone (dropdown avec stock actuel affiché)\n3. Choisissez le type :\n   - Entrée (+) : saisissez quantité + IMEI de chaque unité\n   - Sortie (-) : cochez les IMEI à sortir du stock\n4. Ajoutez un commentaire/raison (optionnel)\n5. Cliquez sur \"Enregistrer le mouvement\"\n\nBouton \"Voir l'historique\" pour consulter les mouvements passés."
+        response: "Pour ajuster le stock :\n1. Cliquez sur \"Stock\" à côté d'un téléphone, ou \"+ Nouveau mouvement\" dans la page Stock\n2. Sélectionnez le téléphone (dropdown avec stock actuel affiché)\n3. Choisissez le type :\n   - Entrée (+) : saisissez quantité + IMEI de chaque unité\n   - Sortie (-) : cochez les IMEI à sortir du stock\n4. Pour les sorties, choisissez le statut :\n   - \"En attente de paiement\" : le téléphone est sorti mais le paiement n'est pas encore confirmé\n   - \"Paiement confirmé\" : la vente est validée immédiatement\n5. Ajoutez un commentaire/raison (optionnel)\n6. Cliquez sur \"Enregistrer le mouvement\"\n\nBouton \"Voir l'historique\" pour consulter les mouvements passés."
     },
     {
         keywords: ['entrée', 'réception', 'approvisionner', 'réappro', 'ajouter stock'],
@@ -105,7 +105,7 @@ const chatbotResponses = [
     },
     {
         keywords: ['sortie', 'retrait', 'sortir stock', 'déduire'],
-        response: "Pour une sortie de stock :\n1. Page Stock → Nouveau mouvement\n2. Sélectionnez le téléphone\n3. Type : \"Sortie (-)\"\n4. Cochez les IMEI des unités à sortir (cases à cocher)\n5. La quantité est calculée automatiquement\n6. Ajoutez une raison (ex: \"Vente directe\", \"Défectueux\")\n7. Enregistrez\n\nNote : les sorties liées aux ventes sont automatiques lors de la création d'une facture."
+        response: "Pour une sortie de stock :\n1. Page Stock → Nouveau mouvement\n2. Sélectionnez le téléphone\n3. Type : \"Sortie (-)\"\n4. Cochez les IMEI des unités à sortir\n5. Choisissez le statut :\n   - \"En attente\" : paiement non confirmé (vous pourrez confirmer ou annuler plus tard)\n   - \"Confirmé\" : vente validée immédiatement\n6. Ajoutez une raison\n7. Enregistrez\n\nDans l'historique, vous pouvez ensuite Confirmer ou Annuler les mouvements \"En attente\". L'annulation restaure automatiquement le stock et les IMEI."
     },
     {
         keywords: ['raison', 'commentaire', 'motif', 'reason'],
@@ -115,7 +115,11 @@ const chatbotResponses = [
     // ===================== STOCK - HISTORIQUE MOUVEMENTS =====================
     {
         keywords: ['historique mouvement', 'mouvement', 'stock page', 'mouvements'],
-        response: "La page Mouvements de stock affiche l'historique complet :\n\n- Colonnes : Date, Téléphone, Type (Entrée/Sortie), Quantité (+/-), Raison, Utilisateur\n- Badge vert \"Entrée\" / Badge rouge \"Sortie\"\n\nFiltres disponibles :\n- Recherche par modèle ou raison\n- Filtre par téléphone (dropdown)\n- Filtre par type (Entrées/Sorties)\n- Plage de dates (début/fin)\n- Export CSV\n- Mode Compact\n- Pagination (20 par page)"
+        response: "La page Mouvements de stock affiche l'historique complet :\n\n- Colonnes : Date, Téléphone, Type, Quantité, Statut, Raison, Utilisateur, Actions\n- Badge vert \"Entrée\" / Badge rouge \"Sortie\"\n- Statut (sorties) : En attente (orange), Confirmé (vert), Annulé (gris)\n\nFiltres disponibles :\n- Recherche par modèle ou raison\n- Filtre par téléphone, type, statut\n- Plage de dates (début/fin)\n- Export CSV, Mode Compact, Pagination\n\nActions : boutons Confirmer/Annuler pour les mouvements \"En attente\"."
+    },
+    {
+        keywords: ['statut mouvement', 'en attente', 'confirmer mouvement', 'annuler mouvement', 'workflow', 'paiement'],
+        response: "Le workflow des sorties de stock :\n\n3 statuts possibles :\n- En attente : le téléphone est sorti mais le paiement n'est pas confirmé\n- Confirmé : le paiement est validé (vente finalisée)\n- Annulé : la sortie est annulée, le stock et les IMEI sont restaurés\n\nDans l'historique des mouvements :\n- Bouton \"Confirmer\" : valide le paiement (en attente → confirmé)\n- Bouton \"Annuler\" : annule la sortie et restaure le stock (en attente → annulé)\n\nLes entrées (IN) sont toujours confirmées automatiquement."
     },
     {
         keywords: ['stock bas', 'alerte', 'minimum', 'rupture', 'alerte stock'],

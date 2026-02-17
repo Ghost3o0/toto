@@ -8,6 +8,7 @@ requireLogin();
 // Paramètres de filtrage et pagination
 $phoneFilter = $_GET['phone'] ?? '';
 $typeFilter = $_GET['type'] ?? '';
+$statusFilter = $_GET['status'] ?? '';
 $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -28,6 +29,11 @@ if ($phoneFilter) {
 if ($typeFilter) {
     $where[] = "sm.type = :type";
     $params['type'] = $typeFilter;
+}
+
+if ($statusFilter) {
+    $where[] = "sm.status = :status";
+    $params['status'] = $statusFilter;
 }
 
 if ($dateFrom) {
@@ -64,13 +70,19 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename=mouvements_' . date('Y-m-d') . '.csv');
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
-    fputcsv($out, ['Date', 'Téléphone', 'Type', 'Quantité', 'Raison', 'Utilisateur'], ';');
+    fputcsv($out, ['Date', 'Téléphone', 'Type', 'Quantité', 'Statut', 'Raison', 'Utilisateur'], ';');
     foreach ($allMovements as $mv) {
+        $statusLabel = match($mv['status'] ?? 'confirme') {
+            'en_attente' => 'En attente',
+            'annule' => 'Annule',
+            default => 'Confirme',
+        };
         fputcsv($out, [
             date('d/m/Y H:i', strtotime($mv['created_at'])),
             ($mv['brand_name'] ?? '') . ' ' . $mv['phone_model'],
             $mv['type'] === 'IN' ? 'Entrée' : 'Sortie',
             ($mv['type'] === 'IN' ? '+' : '-') . $mv['quantity'],
+            $statusLabel,
             $mv['reason'] ?? '',
             $mv['username'] ?? 'Système'
         ], ';');
@@ -147,6 +159,12 @@ if (!$isAjax) {
             <option value="IN" <?= $typeFilter === 'IN' ? 'selected' : '' ?>>Entrées</option>
             <option value="OUT" <?= $typeFilter === 'OUT' ? 'selected' : '' ?>>Sorties</option>
         </select>
+        <select name="status" class="form-control">
+            <option value="">Tous les statuts</option>
+            <option value="en_attente" <?= $statusFilter === 'en_attente' ? 'selected' : '' ?>>En attente</option>
+            <option value="confirme" <?= $statusFilter === 'confirme' ? 'selected' : '' ?>>Confirmé</option>
+            <option value="annule" <?= $statusFilter === 'annule' ? 'selected' : '' ?>>Annulé</option>
+        </select>
         <input type="date" name="date_from" class="form-control"
                value="<?= htmlspecialchars($dateFrom) ?>" title="Date début">
         <input type="date" name="date_to" class="form-control"
@@ -163,14 +181,16 @@ if (!$isAjax) {
                     <th>Téléphone</th>
                     <th>Type</th>
                     <th>Quantité</th>
+                    <th>Statut</th>
                     <th>Raison</th>
                     <th>Utilisateur</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($movements)): ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted">Aucun mouvement trouvé</td>
+                        <td colspan="8" class="text-center text-muted">Aucun mouvement trouvé</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($movements as $movement): ?>
@@ -192,8 +212,42 @@ if (!$isAjax) {
                                     <?= $movement['type'] === 'IN' ? '+' : '-' ?><?= $movement['quantity'] ?>
                                 </strong>
                             </td>
+                            <td>
+                                <?php if ($movement['type'] === 'OUT'): ?>
+                                    <?php $mvStatus = $movement['status'] ?? 'confirme'; ?>
+                                    <?php if ($mvStatus === 'en_attente'): ?>
+                                        <span class="badge badge-warning">En attente</span>
+                                    <?php elseif ($mvStatus === 'annule'): ?>
+                                        <span class="badge badge-secondary">Annulé</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-success">Confirmé</span>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
                             <td><?= htmlspecialchars($movement['reason'] ?? '-') ?></td>
                             <td><?= htmlspecialchars($movement['username'] ?? 'Système') ?></td>
+                            <td>
+                                <?php if ($movement['type'] === 'OUT' && ($movement['status'] ?? 'confirme') === 'en_attente'): ?>
+                                    <div class="btn-group">
+                                        <form method="POST" action="/pages/stock/update-status.php" style="display:inline;">
+                                            <?php csrfField(); ?>
+                                            <input type="hidden" name="movement_id" value="<?= $movement['id'] ?>">
+                                            <input type="hidden" name="new_status" value="confirme">
+                                            <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Confirmer ce mouvement ?')">Confirmer</button>
+                                        </form>
+                                        <form method="POST" action="/pages/stock/update-status.php" style="display:inline;">
+                                            <?php csrfField(); ?>
+                                            <input type="hidden" name="movement_id" value="<?= $movement['id'] ?>">
+                                            <input type="hidden" name="new_status" value="annule">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Annuler ce mouvement et restaurer le stock ?')">Annuler</button>
+                                        </form>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -204,19 +258,19 @@ if (!$isAjax) {
     <?php if ($totalPages > 1): ?>
         <div class="pagination">
             <?php if ($page > 1): ?>
-                <a href="?page=<?= $page - 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Précédent</a>
+                <a href="?page=<?= $page - 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&status=<?= $statusFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Précédent</a>
             <?php endif; ?>
 
             <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
                 <?php if ($i == $page): ?>
                     <span class="active"><?= $i ?></span>
                 <?php else: ?>
-                    <a href="?page=<?= $i ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>"><?= $i ?></a>
+                    <a href="?page=<?= $i ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&status=<?= $statusFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>"><?= $i ?></a>
                 <?php endif; ?>
             <?php endfor; ?>
 
             <?php if ($page < $totalPages): ?>
-                <a href="?page=<?= $page + 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Suivant</a>
+                <a href="?page=<?= $page + 1 ?>&phone=<?= $phoneFilter ?>&type=<?= $typeFilter ?>&status=<?= $statusFilter ?>&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&search=<?= urlencode($search) ?>">Suivant</a>
             <?php endif; ?>
         </div>
     <?php endif; ?>

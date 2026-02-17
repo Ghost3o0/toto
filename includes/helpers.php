@@ -81,6 +81,43 @@ function tableExists(string $table): bool {
 }
 
 /**
+ * Vérifie si une colonne existe dans une table
+ * @param string $table Nom de la table
+ * @param string $column Nom de la colonne
+ * @return bool
+ */
+function columnExists(string $table, string $column): bool {
+    $row = fetchOne(
+        "SELECT 1 FROM information_schema.columns WHERE table_name = :table AND column_name = :column",
+        ['table' => $table, 'column' => $column]
+    );
+    return !empty($row);
+}
+
+/**
+ * Auto-migration : ajoute la colonne status à stock_movements et crée stock_movement_imeis
+ */
+function runAutoMigrations(): void {
+    if (!columnExists('stock_movements', 'status')) {
+        getConnection()->exec(
+            "ALTER TABLE stock_movements ADD COLUMN status VARCHAR(20) DEFAULT 'confirme' CHECK (status IN ('en_attente', 'confirme', 'annule'))"
+        );
+    }
+    if (!tableExists('stock_movement_imeis')) {
+        getConnection()->exec(
+            "CREATE TABLE stock_movement_imeis (
+                id SERIAL PRIMARY KEY,
+                movement_id INTEGER NOT NULL REFERENCES stock_movements(id) ON DELETE CASCADE,
+                phone_imei_id INTEGER NOT NULL REFERENCES phone_imeis(id) ON DELETE CASCADE
+            )"
+        );
+    }
+}
+
+// Exécuter les auto-migrations au chargement
+runAutoMigrations();
+
+/**
  * Valide un IMEI : 15 chiffres + checksum Luhn
  * @param string $imei IMEI à valider
  * @return bool

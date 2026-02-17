@@ -35,6 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $quantity = intval($_POST['quantity'] ?? 0);
         $reason = trim($_POST['reason'] ?? '');
         $postedImeis = $_POST['imeis'] ?? [];
+        $status = ($type === 'OUT') ? ($_POST['status'] ?? 'en_attente') : 'confirme';
+        if (!in_array($status, ['en_attente', 'confirme'])) {
+            $status = 'en_attente';
+        }
 
         // Validation
         if (!$phoneId) {
@@ -103,15 +107,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Enregistrer le mouvement
                 execute(
-                    "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason) VALUES (:phone_id, :user_id, :type, :quantity, :reason)",
+                    "INSERT INTO stock_movements (phone_id, user_id, type, quantity, reason, status) VALUES (:phone_id, :user_id, :type, :quantity, :reason, :status)",
                     [
                         'phone_id' => $phoneId,
                         'user_id' => $_SESSION['user_id'],
                         'type' => $type,
                         'quantity' => $quantity,
-                        'reason' => $reason ?: null
+                        'reason' => $reason ?: null,
+                        'status' => $status
                     ]
                 );
+                $movementId = lastInsertId();
 
                 // Mettre à jour le stock
                 $newQuantity = $type === 'IN' ? $phone['quantity'] + $quantity : $phone['quantity'] - $quantity;
@@ -136,6 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         execute(
                             "UPDATE phone_imeis SET status = 'sold' WHERE id = :id",
                             ['id' => $imeiId]
+                        );
+                        execute(
+                            "INSERT INTO stock_movement_imeis (movement_id, phone_imei_id) VALUES (:mid, :iid)",
+                            ['mid' => $movementId, 'iid' => $imeiId]
                         );
                     }
                 }
@@ -250,6 +260,24 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
         </div>
 
+        <div class="form-group" id="status-group" style="display: none;">
+            <label class="form-label">Statut du mouvement *</label>
+            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="radio" name="status" value="en_attente" checked>
+                    <span class="badge badge-warning" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+                        En attente de paiement
+                    </span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="radio" name="status" value="confirme">
+                    <span class="badge badge-success" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+                        Paiement confirme
+                    </span>
+                </label>
+            </div>
+        </div>
+
         <div id="imei-container"></div>
         <div id="imei-out-container"></div>
 
@@ -279,14 +307,16 @@ function onTypeChange() {
     const type = getSelectedType();
     const qtyGroup = document.getElementById('quantity-group');
     const qtyInput = document.getElementById('quantity');
+    const statusGroup = document.getElementById('status-group');
 
     if (type === 'OUT') {
-        // Cacher le champ quantité (déterminé par les IMEI sélectionnés)
         qtyGroup.style.display = 'none';
         qtyInput.removeAttribute('required');
+        statusGroup.style.display = '';
     } else {
         qtyGroup.style.display = '';
         qtyInput.setAttribute('required', 'required');
+        statusGroup.style.display = 'none';
     }
 
     generateImeiFields();
