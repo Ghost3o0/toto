@@ -21,9 +21,14 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     <?php if (isLoggedIn()): ?>
     <nav class="navbar">
         <div class="navbar-brand">
-            <a href="/pages/dashboard.php">Mystate</a>
+            <a href="/pages/dashboard.php">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><path d="M12 18h.01"/>
+                </svg>
+                Mystate
+            </a>
         </div>
-        <button class="navbar-toggle" aria-label="Ouvrir le menu" aria-expanded="false"> 
+        <button class="navbar-toggle" aria-label="Ouvrir le menu" aria-expanded="false">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
         <ul class="navbar-menu">
@@ -50,11 +55,12 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                     IMEI
                 </a>
             </li>
-            <li>
-                <a href="/pages/logout.php" onclick="return confirm('Voulez-vous vraiment vous déconnecter ?')">Déconnexion</a>
-            </li>
-            <li>
-                <a href="javascript:void(0)" onclick="toggleTheme()" title="Changer le thème">
+        </ul>
+        <div class="navbar-user">
+            <span class="navbar-avatar"><?= strtoupper(mb_substr($currentUser['username'], 0, 1)) ?></span>
+            <span class="navbar-username"><?= htmlspecialchars($currentUser['username']) ?></span>
+            <div class="navbar-actions">
+                <a href="javascript:void(0)" onclick="toggleTheme()" class="navbar-action-btn" title="Changer le thème">
                     <svg class="sun-icon" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
@@ -62,10 +68,12 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                     </svg>
                 </a>
-            </li>
-        </ul>
-        <div class="navbar-user">
-            <span>Bonjour, <?= htmlspecialchars($currentUser['username']) ?></span>
+                <a href="/pages/logout.php" class="navbar-action-btn" title="Déconnexion" onclick="return confirm('Voulez-vous vraiment vous déconnecter ?')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </a>
+            </div>
         </div>
     </nav>
     <?php endif; ?>
